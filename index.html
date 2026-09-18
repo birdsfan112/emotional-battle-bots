@@ -129,7 +129,6 @@
       <button data-mode="pass">📱 Pass &amp; Play</button>
     </div>
     <button class="btn primary" id="btnStart">Choose your bot</button>
-    <button class="btn" id="btnSoundTest" style="font-size:14px;padding:10px">🔊 Test sound (hit + crowd roar)</button>
     <p class="footer">One fight ≈ 3 minutes · mute in the arena · no accounts, no tracking, no feelings spared.<br>Crowd reactions: <a href="https://sound-effects.bbcrewind.co.uk/" style="color:inherit">BBC Sound Effects</a> (RemArc licence) · <span id="buildStamp"></span></p>
   </div>
 </section>
@@ -851,19 +850,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = EBB;
   })();
   $('btnMute').addEventListener('click', () => { Snd.setMuted(!Snd.muted); $('btnMute').textContent = Snd.muted ? '🔇' : '🔊'; });
   window.EBB_SND = Snd; // test hook
-  const BUILD = 'build 1.4.0 · 2026-09-18';
+  const BUILD = 'build 1.4.1 · 2026-09-18';
   $('buildStamp').textContent = BUILD;
-  $('btnSoundTest').addEventListener('click', () => {
-    try {
-      const ok = Snd.probe();
-      // give decode a beat on first tap so the recorded crowd (not the synth fallback) plays
-      setTimeout(() => {
-        Snd.hit(true); setTimeout(() => Snd.crowd('crit'), 250);
-        const n = Snd.samplesLoaded();
-        toast(ok ? `Playing: crit sting, then crowd (${n ? 'recorded, ' + n + '/7 clips loaded' : 'synth fallback'})` : 'Web Audio unavailable in this browser');
-      }, 400);
-    } catch (e) { toast('Sound error: ' + (e && e.message ? e.message : e)); }
-  });
 
   /* ---- title ---- */
   $('modeSeg').addEventListener('click', (e) => {
