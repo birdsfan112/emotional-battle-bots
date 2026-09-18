@@ -5,7 +5,7 @@
 | Phase | Validate |
 | Updated | 2026-09-18 |
 | Summary | v1 built 2026-09-18: single-file phone-first browser game, 8 bots, 5 roast categories (~80 lines) + signature burns, comebacks, resists, self-care; vs. CPU and Pass & Play; share sheet. Node smoke test covers every pairing. Spec: `docs/specs/emotional-battle-bots-v1.md`. |
-| Needs Scott | Play a few fights on your phone and with a friend (Pass & Play); flag lines that land flat and any layout issues on your device. Decide how to share (Claude artifact paste, text the file, or GitHub Pages). |
+| Needs Scott | Play a few fights on your phone and with a friend (Pass & Play); flag lines that land flat and any layout issues on your device. |
 | Autonomous | Line-library punch-ups, balance tuning, layout fixes on reported devices. |
 | Blockers | None. |
 
@@ -27,7 +27,7 @@
 
 # Emotional Battle Bots — Roadmap
 
-**How to run:** open `index.html` in any browser (phone or desktop). No install, no build, no network. **Test:** `node test/smoke.js`.
+**Play:** https://birdsfan112.github.io/emotional-battle-bots/ (GitHub Pages, deploys from `master` root on every push). Or open `index.html` in any browser. No install, no build, no network. **Test:** `node test/smoke.js` (engine) · `node test/visual.js` (headless Chrome screenshots). **Remote:** `birdsfan112/emotional-battle-bots` (public).
 
 ## Current Sprint
 
@@ -35,7 +35,7 @@
 
 - [x] v1 build: roster, roast library, engine, art, UI, share, smoke test (2026-09-18)
 - [ ] [NEXT:scott] Phone playtest (solo + Pass & Play with a friend); note flat lines and layout issues
-- [ ] [NEXT:scott] Pick a share channel: Claude artifact, texted HTML file, or GitHub Pages
+- [x] Share channel: public repo + GitHub Pages (2026-09-18). Also uploaded to Scott's Google Drive root as a fallback.
 
 ## Backlog
 
@@ -56,4 +56,4 @@
 | 2026-09-18 | Built-in hand-written roast library; live LLM generation rejected for v1 | Scott's call at the design fork. A static library is shareable anywhere (artifact, file, Pages) with zero setup, deterministic, and testable. Live generation only works inside Claude artifacts and can stall mid-fight. News-based refresh is v2 via the `EBB_ROASTS_OVERRIDE` hook. | Accepted |
 | 2026-09-18 | Single `index.html`, vanilla JS, procedural SVG, no deps | Same identity as Ichigo: instantly playable from `file://` and pasteable as an artifact. Rejected: a bundler or image assets, which would break the share-a-file story. | Accepted |
 | 2026-09-18 | Core/UI split with CommonJS export inside one file | Lets `node test/smoke.js` simulate every bot pairing with zero deps while the shipped artifact stays one file. | Accepted |
-| 2026-09-18 | Local git repo, no remote | Fun side project; no collaborators. Add a remote only if GitHub Pages becomes the share channel. | Accepted |
+| 2026-09-18 | Public GitHub repo + GitHub Pages as the share channel | Scott: "nothing about this needs to be private." A plain URL is the easiest thing to text friends; Pages deploys from `master` root with no build step, and the repo stays a single file. Supersedes the earlier same-day "local only" call. | Accepted |
