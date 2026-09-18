@@ -2,11 +2,11 @@
 | Field | Value |
 |-------|-------|
 | Priority | active |
-| Phase | Validate |
+| Phase | Iterate |
 | Updated | 2026-09-18 |
-| Summary | v1 built and live 2026-09-18: single-file phone-first browser game, 8 bots, 5 roast categories (~80 lines) + signature burns, comebacks, resists, self-care; vs. CPU and Pass & Play; share sheet. Same-day feedback pass: tap-to-continue with a scrolling fight transcript (no line is ever replaced), larger crowd commentary, synthesized arena music + hit/crit/heal/fanfare sfx with a mute button. Node smoke test covers every pairing; headless-Chrome visual test walks every screen. Spec: `docs/specs/emotional-battle-bots-v1.md`. |
-| Needs Scott | Play a few fights on your phone and with a friend (Pass & Play); flag lines that land flat and any layout issues on your device. |
-| Autonomous | Line-library punch-ups, balance tuning, layout fixes on reported devices. |
+| Summary | **Live at https://birdsfan112.github.io/emotional-battle-bots/ (build 1.4.0, 2026-09-18).** Built, shipped, and iterated in one day with Scott playtesting live: 8 bots, 5 roast categories (~80 lines) + signature burns, comebacks, hidden sore spots (reveal-then-patch), repeat-category penalty, self-care; vs. CPU and Pass & Play; tap-to-continue scrolling transcript; synthesized arena music + sfx; **recorded BBC crowd reactions** (gasp / boo / laugh / cheer, non-commercial licence) with synth fallback. Four test harnesses (engine, visual, synth audio, recorded audio over http) all green. Scott's verdict on the recorded crowd: "MUCH better." |
+| Needs Scott | Share the URL with friends and collect reactions: which lines land, which fall flat, whether any crowd clip feels wrong for its moment. |
+| Autonomous | Line-library punch-up pass (Backlog #2) once feedback arrives; swap any crowd clip Scott flags (BBC archive has hundreds); v2 news-refresh spec (Backlog #1). |
 | Blockers | None. |
 
 <!-- CHIEF OF STAFF NOTE: The Status block above is read by the daily review. Keep every field current.
@@ -34,7 +34,8 @@
 <!-- Active work only. When everything is checked, this section should be empty — a signal to update the Status block. -->
 
 - [x] v1 build: roster, roast library, engine, art, UI, share, smoke test (2026-09-18)
-- [ ] [NEXT:scott] Phone playtest (solo + Pass & Play with a friend); note flat lines and layout issues
+- [x] Phone playtest by Scott (2026-09-18) — drove the four same-day feedback passes below
+- [ ] [NEXT:scott] Share the URL with friends; collect flat lines, layout issues, and any crowd clip that feels wrong
 - [x] Share channel: public repo + GitHub Pages (2026-09-18). Also uploaded to Scott's Google Drive root as a fallback.
 - [x] Scott's first-play notes (2026-09-18): lines and crowd commentary vanished too fast → tap-to-continue + persistent scrolling transcript; crowd text enlarged. Background music → Web Audio loop + sfx, mute button.
 - [x] Second pass (2026-09-18): saw pivot bug + flipper redraw. **Hidden sore spots** (v1.1 engine): no sore/coping labels anywhere; a sore hit reveals "SORE SPOT FOUND!" and the defender patches it for the rest of the fight. **Repeat penalty**: each reuse of a category by the same attacker lands softer (×0.82 per use, floor ×0.6), shown as "used ×n" on the button. Base damage raised 12–22 → 16–28 to keep fights ~5 rounds. **Audible crowd**: synthesized oooh / roar / boo / murmur keyed to the hit tier. Scott heard only music at first: the crowd envelopes used exponential ramps to ~0, which collapse within ~300 ms, so every reaction was a blip under the beat. Fixed with linear decays + a vocal chorus layer + music ducking + a master limiter; `test/audio.js` now measures it. Title screen has a "Test sound" button and a build stamp for remote debugging. Scott then reported it sounded like "brief white noise, not a crowd" → **1.3.0 rebuilt the crowd from voice synthesis**: 8–36 individual sawtooth voices, each through two vowel-formant filters sweeping oo→oh→ah, with per-voice onset/pitch/vibrato jitter and a rising-falling "OOOoooh" contour; plus applause bursts and "wooo" whoops for the roar and a plosive "b" onset for the boo chant. `test/audio.js` now also asserts spectral flatness (voiced ≈ 0.0–0.1 vs white noise ≈ 0.55). Scott: "I can hear the difference but it still doesn't sound like a crowd." **1.4.0: real recordings.** Seven BBC Sound Effects clips (gasps, booing, laughter, cheer-into-applause; RemArc non-commercial licence, `audio/CREDITS.md`), cut by loudness profile with ffmpeg, 143 KB total, served from `audio/` on Pages. Fetched at load, decoded after first gesture; synth crowd remains the fallback for file:// / artifact / Drive copies. `EBB_URL=http://127.0.0.1:8123/ node test/audio.js` exercises the recorded path.
@@ -45,7 +46,7 @@
 
 1. **v2: news-refreshed roast library** — a backend job (Claude API or a Routine) reads current AI news and regenerates the `news` pool (and optionally seasons the others), emitted as `roasts.js` that sets `window.EBB_ROASTS_OVERRIDE`. Hook already exists in v1. Needs a spec: cadence, voice guardrails, how the refreshed file reaches shared copies.
 2. **Line-library punch-up pass** — after playtest feedback; target the weakest ~20% of lines per category.
-3. **Sound polish** — basic loop + sfx shipped 2026-09-18. Possible: a crowd "oooh" sample synthesized from filtered noise, a second riff for round 4+, remember mute across fights.
+3. **Sound polish** — loop, sfx, and recorded crowd shipped 2026-09-18. Possible: a second riff for round 4+, remember mute across fights, a distinct clip for the final blow, applause on the result screen.
 4. **Bot builder** — let players name a bot, pick body/weapon/palette, and write two signature lines; share as a URL hash.
 5. **Best-of-3 with escalating stakes** — round 3 doubles comeback chance; only if single fights feel too short.
 
