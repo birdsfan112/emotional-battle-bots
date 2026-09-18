@@ -11,7 +11,8 @@ A shareable phone/browser game: BattleBots-style robots that do purely emotional
 
 ## Hard stops
 
-- Never add a network call, analytics, or account requirement to `index.html`.
+- Never add a third-party network call, analytics, or account requirement to `index.html`. Same-origin static assets (the `audio/` clips) are fine, but the page must still work without them.
+- Crowd clips are BBC Sound Effects under the non-commercial RemArc licence (`audio/CREDITS.md`). Never use this project commercially without replacing them.
 - Keep the core between the `EBB-CORE-START/END` markers DOM-free so `node test/smoke.js` keeps working.
 
 ## End-of-Session Protocol

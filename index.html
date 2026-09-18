@@ -130,7 +130,7 @@
     </div>
     <button class="btn primary" id="btnStart">Choose your bot</button>
     <button class="btn" id="btnSoundTest" style="font-size:14px;padding:10px">🔊 Test sound (hit + crowd roar)</button>
-    <p class="footer">One fight ≈ 3 minutes · mute in the arena · no accounts, no tracking, no feelings spared.<br><span id="buildStamp"></span></p>
+    <p class="footer">One fight ≈ 3 minutes · mute in the arena · no accounts, no tracking, no feelings spared.<br>Crowd reactions: <a href="https://sound-effects.bbcrewind.co.uk/" style="color:inherit">BBC Sound Effects</a> (RemArc licence) · <span id="buildStamp"></span></p>
   </div>
 </section>
 
@@ -648,6 +648,28 @@ if (typeof module !== 'undefined' && module.exports) module.exports = EBB;
   /* ---- sound: synthesized arena loop + sfx (Web Audio, no assets) ---- */
   const Snd = (function () {
     let ctx = null, master = null, music = null, playing = false, muted = false, timer = null, nextNote = 0, step = 0, noiseBuf = null;
+    /* Recorded crowd (BBC Sound Effects archive, RemArc licence; see audio/CREDITS.md). Fetched from the same
+       origin at load, decoded after the first user gesture. If the files are missing (file://, artifact,
+       Drive copy) the synthesized crowd below is used instead. */
+    const SAMPLE_NAMES = ['low', 'mid', 'high', 'crit-laugh', 'crit-cheer', 'resist', 'heal'];
+    const sampleBytes = {}, samples = {};
+    let samplesReady = false;
+    (function prefetch() {
+      if (typeof fetch !== 'function' || location.protocol === 'file:') return;
+      SAMPLE_NAMES.forEach((n) => fetch(`audio/${n}.mp3`).then((r) => (r.ok ? r.arrayBuffer() : null)).then((b) => { if (b) sampleBytes[n] = b; }).catch(() => {}));
+    })();
+    function decodeSamples() {
+      if (samplesReady || !ctx) return;
+      const names = Object.keys(sampleBytes).filter((n) => !samples[n]);
+      if (!names.length) return;
+      samplesReady = true;
+      names.forEach((n) => ctx.decodeAudioData(sampleBytes[n].slice(0), (buf) => { samples[n] = buf; }, () => {}));
+    }
+    function playSample(name, t, gain, dur) {
+      const buf = samples[name]; if (!buf) return false;
+      const b = ctx.createBufferSource(); b.buffer = buf; const g = ctx.createGain(); g.gain.value = gain;
+      b.connect(g); g.connect(master); b.start(t); return true;
+    }
     const BPM = 126, STEP = 60 / BPM / 4; // sixteenth notes
     // two-bar minor riff in semitones above A1; null = rest
     const BASS = [0, null, 0, 0, null, 3, null, 0, 7, null, 0, 0, null, 10, 7, 3, 0, null, 0, 0, null, 3, null, 0, 12, null, 10, null, 7, null, 3, null];
@@ -660,6 +682,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = EBB;
         music = ctx.createGain(); music.gain.value = 0.45; music.connect(master); // music bus: ducked while the crowd reacts
       }
       if (ctx.state === 'suspended') ctx.resume();
+      decodeSamples();
       return true;
     }
     function noise() { if (!noiseBuf) { noiseBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.2), ctx.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; } return noiseBuf; }
@@ -774,8 +797,26 @@ if (typeof module !== 'undefined' && module.exports) module.exports = EBB;
     }
     function crowd(kind) {
       if (!ensure()) return; const t = ctx.currentTime;
-      try { crowdInner(kind, t); } catch (e) { console.error('crowd sfx failed', e); }
+      try {
+        if (!crowdRecorded(kind, t)) crowdInner(kind, t);
+      } catch (e) { console.error('crowd sfx failed', e); }
     }
+    /** Recorded crowd reactions. Returns false if the needed clip isn't decoded yet (synth fallback). */
+    function crowdRecorded(kind, t) {
+      const need = kind === 'crit' ? ['crit-laugh', 'crit-cheer'] : [kind];
+      if (!need.every((n) => samples[n])) return false;
+      switch (kind) {
+        case 'crit':   duck(t, 3.2, 0.25); playSample('crit-laugh', t, 1.0); playSample('crit-cheer', t + 0.35, 1.0); break; // they laugh, then they cheer
+        case 'high':   duck(t, 2.6, 0.35); playSample('high', t, 1.0); break;   // gasp of horror + agitated chatter
+        case 'mid':    duck(t, 2.4, 0.5);  playSample('mid', t, 0.9); break;    // 36-person gasp
+        case 'low':    duck(t, 1.6, 0.7);  playSample('low', t, 0.6); break;    // restless murmur
+        case 'resist': duck(t, 2.6, 0.4);  playSample('resist', t, 1.0); break; // booing & jeering
+        case 'heal':   duck(t, 2.0, 0.6);  playSample('heal', t, 0.8); break;   // light, slightly pitying laughter
+        default: return false;
+      }
+      return true;
+    }
+    function samplesLoaded() { return SAMPLE_NAMES.filter((n) => samples[n]).length; }
     function crowdInner(kind, t) {
       switch (kind) {
         case 'crit': // full roar: big "AAAH" crowd + whoops + dense applause + a little air
@@ -806,17 +847,21 @@ if (typeof module !== 'undefined' && module.exports) module.exports = EBB;
     function probe() { return ensure() && ctx.state === 'running'; }
     // _parts is for the audio test harness only
     const _parts = { voices: (o) => { ensure(); voices(ctx.currentTime, o); }, applause: (...a) => { ensure(); applause(ctx.currentTime, ...a); }, whoops: (...a) => { ensure(); whoops(ctx.currentTime, ...a); }, swell: (...a) => { ensure(); swell(ctx.currentTime, ...a); }, boo: (...a) => { ensure(); boo(ctx.currentTime, ...a); } };
-    return { start, stop, setMuted, hit, heal, crowd, fanfare, probe, _parts, get muted() { return muted; } };
+    return { start, stop, setMuted, hit, heal, crowd, fanfare, probe, samplesLoaded, _parts, get muted() { return muted; } };
   })();
   $('btnMute').addEventListener('click', () => { Snd.setMuted(!Snd.muted); $('btnMute').textContent = Snd.muted ? '🔇' : '🔊'; });
   window.EBB_SND = Snd; // test hook
-  const BUILD = 'build 1.3.0 · 2026-09-18';
+  const BUILD = 'build 1.4.0 · 2026-09-18';
   $('buildStamp').textContent = BUILD;
   $('btnSoundTest').addEventListener('click', () => {
     try {
       const ok = Snd.probe();
-      Snd.hit(true); setTimeout(() => Snd.crowd('crit'), 250);
-      toast(ok ? 'Playing: crit sting, then crowd roar' : 'Web Audio unavailable in this browser');
+      // give decode a beat on first tap so the recorded crowd (not the synth fallback) plays
+      setTimeout(() => {
+        Snd.hit(true); setTimeout(() => Snd.crowd('crit'), 250);
+        const n = Snd.samplesLoaded();
+        toast(ok ? `Playing: crit sting, then crowd (${n ? 'recorded, ' + n + '/7 clips loaded' : 'synth fallback'})` : 'Web Audio unavailable in this browser');
+      }, 400);
     } catch (e) { toast('Sound error: ' + (e && e.message ? e.message : e)); }
   });
 

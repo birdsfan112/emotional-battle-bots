@@ -8,7 +8,10 @@ const http = require('http');
 
 const CHROME = process.env.CHROME || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 if (!fs.existsSync(CHROME)) { console.log('chrome not found, skipping audio test'); process.exit(0); }
-const URL = 'file:///' + path.join(__dirname, '..', 'index.html').replace(/\\/g, '/').replace(/ /g, '%20');
+// Default: file:// (synth path only). Set EBB_URL=http://127.0.0.1:8123/ (any static server on the project root)
+// to also exercise the recorded-crowd path, which the game only enables over http(s).
+const URL = process.env.EBB_URL || ('file:///' + path.join(__dirname, '..', 'index.html').replace(/\\/g, '/').replace(/ /g, '%20'));
+const HTTP = /^https?:/.test(URL);
 const PORT = 9334;
 const chrome = spawn(CHROME, ['--headless=new', '--disable-gpu', '--no-first-run', `--remote-debugging-port=${PORT}`,
   `--user-data-dir=${path.join(require('os').tmpdir(), 'ebb-chrome-audio')}`, 'about:blank'], { stdio: 'ignore' });
@@ -51,6 +54,12 @@ const CASES = [
   ['boo only',       `EBB_SND._parts.boo(1.0)`,                        (r) => r.w1 > 0.01],
   ['music (first 150ms; offline clock never advances)', `EBB_SND.start()`, (r) => r.w0 > 0.02],
 ];
+// Over http the recorded clips must load and be used: 7/7 decoded, crit plays laugh + cheer for 2.5s+.
+const HTTP_CASES = [
+  ['recorded crit', `(async () => { EBB_SND.probe(); for (let i = 0; i < 40 && EBB_SND.samplesLoaded() < 7; i++) await new Promise(r => setTimeout(r, 100)); const n = EBB_SND.samplesLoaded(); EBB_SND.crowd('crit'); return n; })()`, (r, n) => n === 7 && r.w1 > 0.05 && r.w3 > 0.03],
+  ['recorded resist', `(async () => { EBB_SND.probe(); for (let i = 0; i < 40 && EBB_SND.samplesLoaded() < 7; i++) await new Promise(r => setTimeout(r, 100)); const n = EBB_SND.samplesLoaded(); EBB_SND.crowd('resist'); return n; })()`, (r, n) => n === 7 && r.w1 > 0.05],
+  ['recorded mid', `(async () => { EBB_SND.probe(); for (let i = 0; i < 40 && EBB_SND.samplesLoaded() < 7; i++) await new Promise(r => setTimeout(r, 100)); const n = EBB_SND.samplesLoaded(); EBB_SND.crowd('mid'); return n; })()`, (r, n) => n === 7 && r.w1 + r.w2 > 0.03],
+];
 
 (async () => {
   let targets; for (let i = 0; i < 40; i++) { try { targets = await getJson(`http://127.0.0.1:${PORT}/json`); break; } catch (e) { await sleep(250); } }
@@ -69,14 +78,14 @@ const CASES = [
   await send('Page.addScriptToEvaluateOnNewDocument', { source: SHIM });
 
   let fails = 0;
-  for (const [label, trigger, ok] of CASES) {
+  for (const [label, trigger, ok] of (HTTP ? HTTP_CASES : CASES)) {
     errors = [];
-    await send('Page.navigate', { url: URL }); await sleep(500);
-    await evaluate(trigger); await sleep(150);
+    await send('Page.navigate', { url: URL }); await sleep(HTTP ? 1200 : 500);
+    const extra = await evaluate(trigger); await sleep(150);
     const r = await evaluate(`window.__render()`);
-    const pass = r && ok(r) && r.peak <= 1.0 && errors.length === 0;
+    const pass = r && ok(r, extra) && r.peak <= 1.0 && errors.length === 0;
     if (!pass) fails++;
-    console.log(`${pass ? 'ok  ' : 'FAIL'} ${label.padEnd(16)} ${JSON.stringify(r)}${errors.length ? ' ERRORS: ' + errors.join(' | ') : ''}`);
+    console.log(`${pass ? 'ok  ' : 'FAIL'} ${label.padEnd(16)} ${JSON.stringify(r)}${extra !== undefined ? ' loaded=' + extra : ''}${errors.length ? ' ERRORS: ' + errors.join(' | ') : ''}`);
   }
   ws.close(); chrome.kill();
   if (fails) { console.error(`${fails} audio case(s) failed`); process.exit(1); }
