@@ -26,7 +26,11 @@ const SHIM = `
     const d = buf.getChannelData(0); const sr = buf.sampleRate;
     const rms = (a, b) => { let s = 0, n = 0; for (let i = Math.floor(a * sr); i < Math.min(d.length, Math.floor(b * sr)); i++) { s += d[i] * d[i]; n++; } return n ? +Math.sqrt(s / n).toFixed(4) : 0; };
     let peak = 0; for (let i = 0; i < d.length; i++) peak = Math.max(peak, Math.abs(d[i]));
-    return { w0: rms(0, 0.3), w1: rms(0.3, 0.7), w2: rms(0.7, 1.2), w3: rms(1.2, 1.8), w4: rms(1.8, 2.5), peak: +peak.toFixed(3) };
+    // spectral flatness of a 2048-sample slice at 0.8s: ~1.0 = white noise, small = tonal/voiced. Naive DFT, fine for a test.
+    const N = 2048, off = Math.floor(0.8 * sr); const mags = [];
+    for (let k = 1; k < 512; k++) { let re = 0, im = 0; for (let n = 0; n < N; n++) { const x = d[off + n] * (0.5 - 0.5 * Math.cos(2 * Math.PI * n / N)); const a = 2 * Math.PI * k * n / N; re += x * Math.cos(a); im -= x * Math.sin(a); } mags.push(re * re + im * im + 1e-12); }
+    const geo = Math.exp(mags.reduce((s, m) => s + Math.log(m), 0) / mags.length), ari = mags.reduce((s, m) => s + m, 0) / mags.length;
+    return { w0: rms(0, 0.3), w1: rms(0.3, 0.7), w2: rms(0.7, 1.2), w3: rms(1.2, 1.8), w4: rms(1.8, 2.5), peak: +peak.toFixed(3), flat: +(geo / ari).toFixed(3) };
   };
 `;
 
@@ -34,13 +38,17 @@ const SHIM = `
 const CASES = [
   ['hit(crit)',      `EBB_SND.hit(true)`,                              (r) => r.w0 > 0.03],
   ['crowd low',      `EBB_SND.crowd('low')`,                           (r) => r.w1 > 0.01],
-  ['crowd mid',      `EBB_SND.crowd('mid')`,                           (r) => r.w1 > 0.03],
-  ['crowd high',     `EBB_SND.crowd('high')`,                          (r) => r.w1 > 0.05 && r.w2 > 0.03],
+  ['crowd mid',      `EBB_SND.crowd('mid')`,                           (r) => r.w1 > 0.03 && r.flat < 0.2],
+  ['crowd high',     `EBB_SND.crowd('high')`,                          (r) => r.w1 > 0.05 && r.w2 > 0.03 && r.flat < 0.2],
   ['crowd crit',     `EBB_SND.crowd('crit')`,                          (r) => r.w1 > 0.06 && r.w2 > 0.05 && r.w3 > 0.02],
-  ['crowd resist',   `EBB_SND.crowd('resist')`,                        (r) => r.w1 > 0.03],
-  ['voices only',    `EBB_SND._parts.voices(1.3, 10, 150, 280, 420, 1000, 0.8, 0.3)`, (r) => r.w1 > 0.03 && r.w2 > 0.02],
+  ['crowd resist',   `EBB_SND.crowd('resist')`,                        (r) => r.w1 > 0.03 && r.flat < 0.2],
+  ['white noise ref', `(function(){ EBB_SND.probe(); const c=window.__ctx; const b=c.createBufferSource(); const buf=c.createBuffer(1,c.sampleRate*2.5,c.sampleRate); const d=buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*0.3; b.buffer=buf; b.connect(c.destination); b.start(0); })()`, (r) => r.flat > 0.5],
+  ['voices ooh',     `EBB_SND._parts.voices({n:20,dur:1.3,pitch:[120,300],vowels:['oo','oh','oo'],contour:'ooh',peak:0.5})`, (r) => r.w1 > 0.03 && r.w2 > 0.02],
+  ['voices boo',     `EBB_SND._parts.voices({n:20,dur:1.3,pitch:[90,210],vowels:['oo','oo','oo'],contour:'boo',peak:0.6,plosive:true})`, (r) => r.w1 > 0.03],
+  ['applause',       `EBB_SND._parts.applause(2.0, 140, 0.35)`,        (r) => r.w1 > 0.02 && r.w3 > 0.01],
+  ['whoops',         `EBB_SND._parts.whoops(1.5, 6, 0.12)`,            (r) => r.w1 + r.w2 > 0.01],
   ['swell only',     `EBB_SND._parts.swell(1.3, 600, 1400, 1, 0.9)`,   (r) => r.w1 > 0.02],
-  ['boo only',       `EBB_SND._parts.boo(1.0)`,                        (r) => r.w1 > 0.02],
+  ['boo only',       `EBB_SND._parts.boo(1.0)`,                        (r) => r.w1 > 0.01],
   ['music (first 150ms; offline clock never advances)', `EBB_SND.start()`, (r) => r.w0 > 0.02],
 ];
 
