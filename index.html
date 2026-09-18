@@ -646,20 +646,24 @@ if (typeof module !== 'undefined' && module.exports) module.exports = EBB;
 
   /* ---- sound: synthesized arena loop + sfx (Web Audio, no assets) ---- */
   const Snd = (function () {
-    let ctx = null, master = null, playing = false, muted = false, timer = null, nextNote = 0, step = 0, noiseBuf = null;
+    let ctx = null, master = null, music = null, playing = false, muted = false, timer = null, nextNote = 0, step = 0, noiseBuf = null;
     const BPM = 126, STEP = 60 / BPM / 4; // sixteenth notes
     // two-bar minor riff in semitones above A1; null = rest
     const BASS = [0, null, 0, 0, null, 3, null, 0, 7, null, 0, 0, null, 10, 7, 3, 0, null, 0, 0, null, 3, null, 0, 12, null, 10, null, 7, null, 3, null];
     function ensure() {
-      if (!ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false; ctx = new AC(); master = ctx.createGain(); master.gain.value = muted ? 0 : 0.22; master.connect(ctx.destination); }
+      if (!ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false; ctx = new AC();
+        master = ctx.createGain(); master.gain.value = muted ? 0 : 0.5; master.connect(ctx.destination);
+        music = ctx.createGain(); music.gain.value = 0.45; music.connect(master); // music bus: ducked while the crowd reacts
+      }
       if (ctx.state === 'suspended') ctx.resume();
       return true;
     }
     function noise() { if (!noiseBuf) { noiseBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.2), ctx.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; } return noiseBuf; }
-    function kick(t, vol) { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.12); g.gain.setValueAtTime(vol || 0.9, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25); o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.3); }
-    function hat(t, open) { const b = ctx.createBufferSource(); b.buffer = noise(); const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 7000; const g = ctx.createGain(); g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t + (open ? 0.18 : 0.05)); b.connect(f); f.connect(g); g.connect(master); b.start(t); b.stop(t + 0.2); }
-    function snare(t) { const b = ctx.createBufferSource(); b.buffer = noise(); const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1800; const g = ctx.createGain(); g.gain.setValueAtTime(0.35, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.15); b.connect(f); f.connect(g); g.connect(master); b.start(t); b.stop(t + 0.2); }
-    function bassNote(t, semi) { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 55 * Math.pow(2, semi / 12); const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(1100, t); f.frequency.exponentialRampToValueAtTime(220, t + STEP * 0.9); const g = ctx.createGain(); g.gain.setValueAtTime(0.32, t); g.gain.exponentialRampToValueAtTime(0.001, t + STEP * 0.95); o.connect(f); f.connect(g); g.connect(master); o.start(t); o.stop(t + STEP); }
+    function kick(t, vol, bus) { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.12); g.gain.setValueAtTime(vol || 0.9, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25); o.connect(g); g.connect(bus || music); o.start(t); o.stop(t + 0.3); }
+    function hat(t, open) { const b = ctx.createBufferSource(); b.buffer = noise(); const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 7000; const g = ctx.createGain(); g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t + (open ? 0.18 : 0.05)); b.connect(f); f.connect(g); g.connect(music); b.start(t); b.stop(t + 0.2); }
+    function snare(t, bus) { const b = ctx.createBufferSource(); b.buffer = noise(); const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1800; const g = ctx.createGain(); g.gain.setValueAtTime(0.35, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.15); b.connect(f); f.connect(g); g.connect(bus || music); b.start(t); b.stop(t + 0.2); }
+    function bassNote(t, semi) { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 55 * Math.pow(2, semi / 12); const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(1100, t); f.frequency.exponentialRampToValueAtTime(220, t + STEP * 0.9); const g = ctx.createGain(); g.gain.setValueAtTime(0.32, t); g.gain.exponentialRampToValueAtTime(0.001, t + STEP * 0.95); o.connect(f); f.connect(g); g.connect(music); o.start(t); o.stop(t + STEP); }
     function schedule() {
       while (nextNote < ctx.currentTime + 0.15) {
         const s = step % 32;
@@ -672,37 +676,52 @@ if (typeof module !== 'undefined' && module.exports) module.exports = EBB;
     }
     function start() { if (!ensure() || playing) return; playing = true; nextNote = ctx.currentTime + 0.05; step = 0; timer = setInterval(schedule, 50); }
     function stop() { playing = false; if (timer) clearInterval(timer); timer = null; }
-    function setMuted(m) { muted = m; if (master) master.gain.value = m ? 0 : 0.22; }
+    function setMuted(m) { muted = m; if (master) master.gain.value = m ? 0 : 0.5; }
     function hit(crit) {
-      if (!ensure()) return; const t = ctx.currentTime; kick(t, 1); snare(t + 0.02);
+      if (!ensure()) return; const t = ctx.currentTime; kick(t, 1, master); snare(t + 0.02, master);
       if (crit) { const o = ctx.createOscillator(); o.type = 'square'; o.frequency.setValueAtTime(880, t); o.frequency.exponentialRampToValueAtTime(180, t + 0.4); const g = ctx.createGain(); g.gain.setValueAtTime(0.18, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.45); o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.5); }
     }
     function heal() { if (!ensure()) return; const t = ctx.currentTime; [523, 659, 784].forEach((f, i) => { const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = f; const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t + i * 0.08); g.gain.linearRampToValueAtTime(0.18, t + i * 0.08 + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.08 + 0.4); o.connect(g); g.connect(master); o.start(t + i * 0.08); o.stop(t + i * 0.08 + 0.45); }); }
-    /* crowd: layered noise swells shaped like a stadium. kind = low | mid | high | crit | resist | heal */
+    /* crowd: noise "air" + a chorus of detuned voices sweeping through an "oooh" formant, music ducked underneath.
+       kind = low | mid | high | crit | resist | heal */
     function swell(t, dur, f0, f1, q, peak, delay) {
       const b = ctx.createBufferSource(); b.buffer = longNoise(); b.loop = true;
       const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = q; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.55); f.frequency.exponentialRampToValueAtTime(f0 * 0.8, t + dur);
       const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + dur * 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
       b.connect(f); f.connect(g); g.connect(master); b.start(t + (delay || 0)); b.stop(t + dur + 0.05);
     }
+    function voices(t, dur, n, pitchLo, pitchHi, f0, f1, peak, rise) {
+      // n sawtooth "throats" at scattered pitches, slow vibrato, through a sweeping formant filter → "ooooh" / "aaah"
+      const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 2.2; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.5); f.frequency.exponentialRampToValueAtTime(f0, t + dur);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + dur * (rise || 0.25)); g.gain.setValueAtTime(peak, t + dur * 0.55); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      f.connect(g); g.connect(master);
+      for (let i = 0; i < n; i++) {
+        const o = ctx.createOscillator(); o.type = 'sawtooth';
+        const p = pitchLo + Math.random() * (pitchHi - pitchLo); o.frequency.setValueAtTime(p, t); o.frequency.linearRampToValueAtTime(p * (0.94 + Math.random() * 0.12), t + dur);
+        const v = ctx.createOscillator(); v.frequency.value = 4 + Math.random() * 3; const vg = ctx.createGain(); vg.gain.value = p * 0.02; v.connect(vg); vg.connect(o.frequency);
+        const og = ctx.createGain(); og.gain.value = 1 / n; o.connect(og); og.connect(f);
+        o.start(t + Math.random() * 0.08); v.start(t); o.stop(t + dur + 0.1); v.stop(t + dur + 0.1);
+      }
+    }
+    function duck(t, dur, depth) { if (!music) return; const g = music.gain; g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(0.45 * depth, t + 0.08); g.setValueAtTime(0.45 * depth, t + dur * 0.6); g.linearRampToValueAtTime(0.45, t + dur + 0.3); }
     let longBuf = null;
     function longNoise() { if (!longBuf) { longBuf = ctx.createBuffer(1, ctx.sampleRate * 1.5, ctx.sampleRate); const d = longBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; } return longBuf; }
     function boo(t, dur) { // low "booo" = wobbling low square through a lowpass
       const o = ctx.createOscillator(); o.type = 'square'; o.frequency.setValueAtTime(140, t); o.frequency.linearRampToValueAtTime(110, t + dur);
       const l = ctx.createOscillator(); l.frequency.value = 6; const lg = ctx.createGain(); lg.gain.value = 12; l.connect(lg); lg.connect(o.frequency);
       const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 500;
-      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12, t + 0.15); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.4, t + 0.15); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
       o.connect(f); f.connect(g); g.connect(master); o.start(t); l.start(t); o.stop(t + dur); l.stop(t + dur);
     }
     function crowd(kind) {
       if (!ensure()) return; const t = ctx.currentTime;
       switch (kind) {
-        case 'crit': swell(t, 1.4, 500, 1400, 1.2, 0.5); swell(t, 1.6, 2500, 4000, 0.7, 0.25, 0.15); swell(t, 1.1, 300, 900, 2, 0.35, 0.05); break; // roar
-        case 'high': swell(t, 1.1, 450, 1100, 1.5, 0.42); swell(t, 0.9, 300, 800, 2.5, 0.3, 0.08); break; // big OOOOH
-        case 'mid': swell(t, 0.8, 400, 800, 2, 0.28); break; // ooh
-        case 'low': swell(t, 0.5, 350, 500, 3, 0.1); break; // scattered murmur
-        case 'resist': boo(t, 0.9); swell(t, 0.7, 250, 350, 3, 0.12, 0.1); break; // boo
-        case 'heal': swell(t, 0.6, 600, 900, 3, 0.1); boo(t + 0.2, 0.5); break; // polite murmur then a lone boo
+        case 'crit': duck(t, 1.8, 0.25); voices(t, 1.8, 14, 160, 330, 500, 1500, 0.9, 0.2); swell(t, 1.8, 900, 2600, 0.8, 1.2); swell(t, 2.0, 3000, 5000, 0.6, 0.5, 0.2); break; // full roar
+        case 'high': duck(t, 1.3, 0.35); voices(t, 1.3, 10, 150, 280, 420, 1000, 0.8, 0.3); swell(t, 1.3, 600, 1400, 1, 0.9); break; // big OOOOH
+        case 'mid': duck(t, 0.9, 0.5); voices(t, 0.9, 7, 150, 260, 400, 800, 0.6, 0.3); swell(t, 0.9, 500, 1000, 1.2, 0.5); break; // ooh
+        case 'low': duck(t, 0.6, 0.7); voices(t, 0.6, 4, 140, 220, 350, 550, 0.25, 0.4); swell(t, 0.6, 400, 600, 1.5, 0.25); break; // scattered murmur
+        case 'resist': duck(t, 1.0, 0.4); boo(t, 1.0); voices(t, 1.0, 8, 110, 170, 250, 380, 0.7, 0.2); swell(t, 0.9, 250, 350, 1.5, 0.35, 0.1); break; // BOOO
+        case 'heal': duck(t, 0.8, 0.6); voices(t, 0.6, 4, 180, 260, 600, 900, 0.3, 0.4); boo(t + 0.25, 0.5); break; // polite murmur then a lone boo
       }
     }
     function fanfare() { if (!ensure()) return; const t = ctx.currentTime; [440, 554, 659, 880].forEach((f, i) => { const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = f; const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t + i * 0.12); g.gain.linearRampToValueAtTime(0.14, t + i * 0.12 + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.12 + (i === 3 ? 0.9 : 0.25)); o.connect(g); g.connect(master); o.start(t + i * 0.12); o.stop(t + i * 0.12 + 1); }); }
