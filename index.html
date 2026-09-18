@@ -588,12 +588,18 @@ const EBB = (function () {
     parts.push(`<rect x="130" y="70" width="34" height="10" rx="4" fill="#666" stroke="#333" stroke-width="2"/>`);
     let w = '';
     switch (L.weapon) {
-      case 'saw': w = `<g transform="translate(172 75)"><circle r="22" fill="#d8d8e0" stroke="#444" stroke-width="3"/>` +
+      case 'saw': w = `<g transform="translate(172 75)"><g><circle r="22" fill="#d8d8e0" stroke="#444" stroke-width="3"/>` +
         Array.from({ length: 10 }, (_, i) => `<path transform="rotate(${i * 36})" d="M0 -22 L6 -30 L10 -20 Z" fill="#d8d8e0" stroke="#444" stroke-width="1.5"/>`).join('') +
-        `<circle r="5" fill="${g}"/><animateTransform attributeName="transform" type="rotate" from="0 172 75" to="360 172 75" dur="1.2s" repeatCount="indefinite" additive="sum"/></g>`; break;
+        `<circle r="5" fill="${g}"/><animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="1.2s" repeatCount="indefinite"/></g></g>`; break;
       case 'clamp': w = `<g><path d="M164 75 Q184 50 196 62 L190 68 Q180 62 168 76 Z" fill="#c0c0cc" stroke="#444" stroke-width="2"><animateTransform attributeName="transform" type="rotate" values="0 164 75;-12 164 75;0 164 75" dur="1.4s" repeatCount="indefinite"/></path>` +
         `<path d="M164 75 Q184 100 196 88 L190 82 Q180 88 168 74 Z" fill="#c0c0cc" stroke="#444" stroke-width="2"><animateTransform attributeName="transform" type="rotate" values="0 164 75;12 164 75;0 164 75" dur="1.4s" repeatCount="indefinite"/></path></g>`; break;
-      case 'flipper': w = `<g><path d="M162 80 L198 62 L198 70 L166 88 Z" fill="#a08050" stroke="#3b2a15" stroke-width="2"><animateTransform attributeName="transform" type="rotate" values="0 162 80;-25 162 80;0 162 80" dur="2.2s" repeatCount="indefinite"/></path><circle cx="162" cy="80" r="5" fill="#555"/></g>`; break;
+      case 'flipper': w = `<g>` +
+        `<rect x="156" y="84" width="10" height="20" rx="2" fill="#444"/><rect x="166" y="90" width="26" height="8" rx="2" fill="#777" stroke="#333" stroke-width="1.5"/>` + // hydraulic ram
+        `<g><path d="M160 86 L204 58 L214 70 L206 74 L168 98 Z" fill="#b08a55" stroke="#3b2a15" stroke-width="2.5"/>` + // flipper plate (wedge)
+        `<path d="M168 88 L200 68" stroke="#3b2a15" stroke-width="1.5" opacity=".6"/>` +
+        [174, 186, 198].map((x, i) => `<circle cx="${x}" cy="${84 - i * 7}" r="1.8" fill="#3b2a15"/>`).join('') + // rivets
+        `<animateTransform attributeName="transform" type="rotate" values="0 160 86;-40 160 86;-40 160 86;0 160 86;0 160 86" keyTimes="0;.15;.3;.45;1" dur="2.6s" repeatCount="indefinite"/></g>` +
+        `<circle cx="160" cy="86" r="5" fill="#555" stroke="#222" stroke-width="1.5"/></g>`; break;
       case 'drum': w = `<g><rect x="162" y="56" width="30" height="38" rx="6" fill="#cfcfe0" stroke="#444" stroke-width="3"/>` +
         [62, 72, 82].map((y) => `<rect x="158" y="${y}" width="38" height="4" fill="#444"><animate attributeName="y" values="${y};${y + 10};${y}" dur=".6s" repeatCount="indefinite"/></rect>`).join('') + `</g>`; break;
       case 'flame': w = `<g><rect x="160" y="68" width="22" height="14" rx="3" fill="#333"/><path d="M182 75 Q200 60 214 75 Q200 90 182 75 Z" fill="#ff7a2d"><animate attributeName="d" values="M182 75 Q200 60 214 75 Q200 90 182 75 Z;M182 75 Q204 58 222 75 Q204 92 182 75 Z;M182 75 Q200 60 214 75 Q200 90 182 75 Z" dur=".5s" repeatCount="indefinite"/></path><path d="M182 75 Q194 66 204 75 Q194 84 182 75 Z" fill="#ffd166"/></g>`; break;
