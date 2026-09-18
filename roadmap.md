@@ -27,7 +27,7 @@
 
 # Emotional Battle Bots — Roadmap
 
-**Play:** https://birdsfan112.github.io/emotional-battle-bots/ (GitHub Pages, deploys from `master` root on every push). Or open `index.html` in any browser. No install, no build, no network. **Test:** `node test/smoke.js` (engine) · `node test/visual.js` (headless Chrome screenshots). **Remote:** `birdsfan112/emotional-battle-bots` (public).
+**Play:** https://birdsfan112.github.io/emotional-battle-bots/ (GitHub Pages, deploys from `master` root on every push). Or open `index.html` in any browser. No install, no build, no network. **Test:** `node test/smoke.js` (engine) · `node test/visual.js` (headless Chrome screenshots) · `node test/audio.js` (renders each sound offline and asserts signal level per time window). **Remote:** `birdsfan112/emotional-battle-bots` (public).
 
 ## Current Sprint
 
@@ -37,7 +37,7 @@
 - [ ] [NEXT:scott] Phone playtest (solo + Pass & Play with a friend); note flat lines and layout issues
 - [x] Share channel: public repo + GitHub Pages (2026-09-18). Also uploaded to Scott's Google Drive root as a fallback.
 - [x] Scott's first-play notes (2026-09-18): lines and crowd commentary vanished too fast → tap-to-continue + persistent scrolling transcript; crowd text enlarged. Background music → Web Audio loop + sfx, mute button.
-- [x] Second pass (2026-09-18): saw pivot bug + flipper redraw. **Hidden sore spots** (v1.1 engine): no sore/coping labels anywhere; a sore hit reveals "SORE SPOT FOUND!" and the defender patches it for the rest of the fight. **Repeat penalty**: each reuse of a category by the same attacker lands softer (×0.82 per use, floor ×0.6), shown as "used ×n" on the button. Base damage raised 12–22 → 16–28 to keep fights ~5 rounds. **Audible crowd**: synthesized oooh / roar / boo / murmur keyed to the hit tier.
+- [x] Second pass (2026-09-18): saw pivot bug + flipper redraw. **Hidden sore spots** (v1.1 engine): no sore/coping labels anywhere; a sore hit reveals "SORE SPOT FOUND!" and the defender patches it for the rest of the fight. **Repeat penalty**: each reuse of a category by the same attacker lands softer (×0.82 per use, floor ×0.6), shown as "used ×n" on the button. Base damage raised 12–22 → 16–28 to keep fights ~5 rounds. **Audible crowd**: synthesized oooh / roar / boo / murmur keyed to the hit tier. Scott heard only music at first: the crowd envelopes used exponential ramps to ~0, which collapse within ~300 ms, so every reaction was a blip under the beat. Fixed with linear decays + a vocal chorus layer + music ducking + a master limiter; `test/audio.js` now measures it. Title screen has a "Test sound" button and a build stamp for remote debugging.
 
 ## Backlog
 

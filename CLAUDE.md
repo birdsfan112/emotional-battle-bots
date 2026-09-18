@@ -16,8 +16,10 @@ A shareable phone/browser game: BattleBots-style robots that do purely emotional
 
 ## End-of-Session Protocol
 
-Follow the `session-closure` skill. Run `node test/smoke.js` before committing.
+Follow the `session-closure` skill. Run `node test/smoke.js`, `node test/visual.js`, and `node test/audio.js` before committing.
 
 ## Lessons Learned
 
 <!-- Hard-won gotchas specific to this project. Add entries as they come up. -->
+
+- **Web Audio `exponentialRampToValueAtTime` toward ~0 is a cliff, not a fade (2026-09-18).** A ramp from 0.9 to 0.0001 over 1 s is ~35× quieter by 400 ms, so a "1.8 s crowd roar" was audible for a blip and buried under the beat. Use linear decays (or exponential to a real floor like 5% then linear to 0). Never trust a synth sound by reading the code: `test/audio.js` renders it through an OfflineAudioContext and asserts RMS per time window.
