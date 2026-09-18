@@ -52,10 +52,15 @@ function getJson(u) { return new Promise((res, rej) => http.get(u, (r) => { let 
   await shot('03-arena');
 
   // play the player's turn on the CPU's sore spot; the transcript waits for a tap before the CPU replies
-  await evaluate(`(function(){ const b=[...document.querySelectorAll('.move')].find(m=>m.classList.contains('sore'))||document.querySelector('.move'); b.click(); })()`);
-  await sleep(1400); await shot('04-hit');
-  const tapShown = await evaluate(`!!document.getElementById('btnNext')`);
-  await evaluate(`document.getElementById('btnNext').click()`); await sleep(2400); await shot('05-cpu-reply');
+  // sore spots are hidden now; the CPU opponent is random, so hit Impact (a common sore spot) and accept whatever lands
+  await evaluate(`(function(){ const b=document.querySelector('.move[data-k="impact"]')||document.querySelector('.move'); b.click(); })()`);
+  const leaks = await evaluate(`[...document.querySelectorAll('.move small, .card .stat')].map(e=>e.textContent).join('|')`);
+  if (/sore spot|they cope/i.test(leaks)) errors.push('sore/coping labels leaked into the UI: ' + leaks);
+  const waitFor = async (expr, ms) => { for (let i = 0; i < ms / 100; i++) { if (await evaluate(expr)) return true; await sleep(100); } return false; };
+  const tapShown = await waitFor(`!!document.getElementById('btnNext')`, 6000);
+  await shot('04-hit');
+  await evaluate(`document.getElementById('btnNext').click()`);
+  await waitFor(`!!document.getElementById('btnNext')`, 8000); await shot('05-cpu-reply');
   const transcriptKept = await evaluate(`document.querySelectorAll('#stage .bubble').length`);
 
   // auto-play until result: click a move if available, otherwise tap-to-continue

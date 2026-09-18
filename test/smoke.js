@@ -41,7 +41,7 @@ for (const A of EBB.BOTS) for (const B of EBB.BOTS) {
       check(!/\{\w+\}/.test(ev.line), `unfilled token in line: ${ev.line}`);
       if (ev.comebackLine) check(!/\{\w+\}/.test(ev.comebackLine), `unfilled token in comeback: ${ev.comebackLine}`);
       if (ev.resistLine) check(!/\{\w+\}/.test(ev.resistLine), `unfilled token in resist: ${ev.resistLine}`);
-      if (ev.dmg) check(ev.dmg >= 4 && ev.dmg <= 60, `dmg out of range ${ev.dmg}`);
+      if (ev.dmg) check(ev.dmg >= 4 && ev.dmg <= 75, `dmg out of range ${ev.dmg}`);
       if (ev.crit) crits++; if (ev.comeback) comebacks++; if (ev.heal) heals++; if (ev.resisted) resists++;
     }
     check(st.over, `${A.id} vs ${B.id} did not finish in 80 turns`);
@@ -58,10 +58,14 @@ check(crits > 0 && comebacks > 0 && heals > 0 && resists > 0, `some mechanic nev
 {
   const st = EBB.newBattle('grievance', 'pleasantries'); // pleasantries copes with alignment, sore on impact
   const r = EBB.act(st, 'a', 'alignment');
-  check(r.resisted && r.resistLine && r.dmg <= 12, `resist did not reduce damage (${r.dmg})`);
+  check(r.resisted && r.resistLine && r.dmg <= 15, `resist did not reduce damage (${r.dmg})`);
   const st2 = EBB.newBattle('grievance', 'pleasantries');
   const s = EBB.act(st2, 'a', 'impact');
-  check(s.sore, 'sore flag missing');
+  check(s.sore && s.patchLine && !st2.b.soreOpen, 'first sore hit should flag, patch, and close the sore spot');
+  EBB.act(st2, 'b', 'looks');
+  const s2 = EBB.act(st2, 'a', 'impact');
+  check(!s2.sore && s2.stale === 1, `second hit on same category should be patched + stale (sore=${s2.sore} stale=${s2.stale})`);
+  check(['low', 'mid', 'high', 'crit', 'resist'].includes(s2.tier), `tier missing: ${s2.tier}`);
 }
 
 // 3. Line variety: no repeat within one long battle until pool exhausted

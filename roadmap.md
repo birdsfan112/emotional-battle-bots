@@ -37,6 +37,7 @@
 - [ ] [NEXT:scott] Phone playtest (solo + Pass & Play with a friend); note flat lines and layout issues
 - [x] Share channel: public repo + GitHub Pages (2026-09-18). Also uploaded to Scott's Google Drive root as a fallback.
 - [x] Scott's first-play notes (2026-09-18): lines and crowd commentary vanished too fast → tap-to-continue + persistent scrolling transcript; crowd text enlarged. Background music → Web Audio loop + sfx, mute button.
+- [x] Second pass (2026-09-18): saw pivot bug + flipper redraw. **Hidden sore spots** (v1.1 engine): no sore/coping labels anywhere; a sore hit reveals "SORE SPOT FOUND!" and the defender patches it for the rest of the fight. **Repeat penalty**: each reuse of a category by the same attacker lands softer (×0.82 per use, floor ×0.6), shown as "used ×n" on the button. Base damage raised 12–22 → 16–28 to keep fights ~5 rounds. **Audible crowd**: synthesized oooh / roar / boo / murmur keyed to the hit tier.
 
 ## Backlog
 
