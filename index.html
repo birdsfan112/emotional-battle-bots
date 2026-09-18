@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0b12">
+<title>Emotional Battle Bots</title>
+<style>
+  :root{
+    --bg:#0b0b12; --panel:#15152a; --panel2:#1d1d36; --ink:#f2f0ff; --muted:#9a97c2;
+    --neon:#ff2d6f; --neon2:#28f0ff; --gold:#ffd166; --green:#3ddc84; --red:#ff4d4d;
+    --hp-a:#3ddc84; --hp-b:#ff2d6f;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overscroll-behavior:none}
+  body{display:flex;flex-direction:column;min-height:100dvh}
+  button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+  .screen{display:none;flex:1;flex-direction:column;min-height:100dvh;padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom))}
+  .screen.on{display:flex}
+  h1{font-size:clamp(28px,8vw,44px);line-height:1;margin:0;letter-spacing:-.02em;text-transform:uppercase;font-weight:900;
+     background:linear-gradient(90deg,var(--neon),var(--gold),var(--neon2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .tag{color:var(--muted);margin:8px 0 0;font-size:15px}
+  .btn{display:block;width:100%;padding:14px 16px;border-radius:14px;background:var(--panel2);font-weight:700;font-size:16px;text-align:center;border:1px solid #2c2c52}
+  .btn.primary{background:linear-gradient(90deg,var(--neon),#ff7a2d);border:0;color:#fff;box-shadow:0 6px 24px rgba(255,45,111,.35)}
+  .btn:disabled{opacity:.35}
+  .btn:active{transform:scale(.98)}
+  .stack{display:flex;flex-direction:column;gap:10px}
+  .row{display:flex;gap:10px}
+  .grow{flex:1}
+  .center{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;flex:1}
+  .small{font-size:13px;color:var(--muted)}
+  .seg{display:flex;background:var(--panel);border-radius:12px;padding:4px;gap:4px}
+  .seg button{flex:1;padding:10px;border-radius:9px;font-weight:700;color:var(--muted)}
+  .seg button.on{background:var(--panel2);color:var(--ink)}
+
+  /* roster */
+  .roster{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;overflow:auto;padding:4px 0 8px}
+  .card{background:var(--panel);border-radius:14px;padding:10px;text-align:left;border:2px solid transparent;display:flex;flex-direction:column;gap:4px}
+  .card.sel{border-color:var(--gold);background:var(--panel2)}
+  .card svg{width:100%;height:auto;display:block}
+  .card b{font-size:14px;letter-spacing:.02em}
+  .card .small{font-size:11.5px;line-height:1.25}
+  .stat{display:flex;gap:6px;font-size:10.5px;color:var(--muted);flex-wrap:wrap}
+  .stat span{background:#0b0b12;border-radius:6px;padding:2px 6px}
+
+  /* arena */
+  #arena{padding:8px 10px max(10px,env(safe-area-inset-bottom))}
+  .fighter{display:flex;align-items:center;gap:8px;padding:6px 4px}
+  .fighter.top{flex-direction:row-reverse}
+  .fighter .svg{flex:none;width:42%;max-width:180px}
+  .fighter svg{width:100%;height:auto;display:block;filter:drop-shadow(0 6px 12px rgba(0,0,0,.6))}
+  .fighter .info{flex:1;min-width:0}
+  .fighter .name{font-weight:900;font-size:15px;letter-spacing:.03em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fighter .sub{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bar{height:14px;background:#0b0b12;border-radius:8px;overflow:hidden;margin-top:6px;border:1px solid #2c2c52;position:relative}
+  .bar i{display:block;height:100%;border-radius:8px;transition:width .5s cubic-bezier(.2,.8,.2,1)}
+  .bar b{position:absolute;inset:0;font-size:10px;line-height:14px;text-align:center;color:#fff;text-shadow:0 1px 2px #000;font-weight:700}
+  .top .bar i{background:linear-gradient(90deg,var(--hp-b),#ff7a2d)}
+  .bot .bar i{background:linear-gradient(90deg,var(--hp-a),#28f0ff)}
+  .hit{animation:shake .45s}
+  @keyframes shake{0%,100%{transform:translate(0)}20%{transform:translate(-8px,2px) rotate(-3deg)}40%{transform:translate(7px,-2px) rotate(3deg)}60%{transform:translate(-5px,1px)}80%{transform:translate(4px,-1px)}}
+  .flash{animation:flash .45s}
+  @keyframes flash{0%,100%{filter:none}30%{filter:brightness(3) saturate(0)}}
+  .float{position:absolute;font-weight:900;font-size:28px;color:var(--gold);text-shadow:0 2px 6px #000;animation:rise 1.1s forwards;pointer-events:none;z-index:5}
+  .float.crit{color:var(--neon);font-size:34px}
+  .float.heal{color:var(--green)}
+  @keyframes rise{0%{opacity:0;transform:translateY(10px) scale(.7)}15%{opacity:1;transform:translateY(0) scale(1.15)}100%{opacity:0;transform:translateY(-50px)}}
+
+  .stage{flex:1;display:flex;flex-direction:column;justify-content:center;gap:8px;min-height:120px;position:relative;padding:10px;border-radius:18px;
+    border:1px dashed #33335e;background:
+      radial-gradient(ellipse at 50% 55%,rgba(255,45,111,.10),transparent 60%),
+      repeating-linear-gradient(0deg,transparent 0 22px,rgba(255,255,255,.025) 22px 23px),
+      repeating-linear-gradient(90deg,transparent 0 22px,rgba(255,255,255,.025) 22px 23px)}
+  .bubble{background:#fff;color:#111;border-radius:16px;padding:10px 12px;font-size:15px;line-height:1.3;position:relative;max-width:92%;animation:pop .25s;box-shadow:0 8px 20px rgba(0,0,0,.4)}
+  .bubble.them{align-self:flex-end;border-top-right-radius:4px}
+  .bubble.me{align-self:flex-start;border-bottom-left-radius:4px}
+  .bubble.crit{background:#ffe08a;box-shadow:0 0 0 3px var(--gold),0 8px 20px rgba(0,0,0,.4)}
+  .bubble.heal{background:#c9f7dd}
+  .bubble .who{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:800;margin-bottom:2px}
+  .bubble .tagline{display:block;margin-top:6px;font-size:11.5px;color:#7a2d43;font-weight:700}
+  @keyframes pop{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+  .crowd{text-align:center;font-size:12.5px;color:var(--muted);font-style:italic;min-height:16px}
+  .round{text-align:center;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+
+  .moves{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px}
+  .move{padding:10px 6px;border-radius:12px;background:var(--panel2);border:1px solid #2c2c52;display:flex;flex-direction:column;align-items:center;gap:2px;font-weight:700;font-size:12.5px;line-height:1.1}
+  .move em{font-style:normal;font-size:20px}
+  .move small{font-size:9.5px;color:var(--muted);font-weight:600}
+  .move.sore{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
+  .move.care{background:#173a2b;border-color:#2b6d4f}
+  .move:disabled{opacity:.3}
+  .hint{text-align:center;font-size:11.5px;color:var(--muted);margin-top:6px;min-height:14px}
+
+  .overlay{position:fixed;inset:0;background:rgba(11,11,18,.92);display:none;flex-direction:column;justify-content:center;align-items:center;padding:24px;text-align:center;z-index:20;gap:14px}
+  .overlay.on{display:flex}
+  .overlay h2{margin:0;font-size:26px}
+  .overlay p{margin:0;color:var(--muted)}
+
+  /* results */
+  #result .winner svg{width:60%;max-width:240px;height:auto;filter:drop-shadow(0 0 24px var(--gold))}
+  .trophy{font-size:44px;line-height:1}
+  .quote{background:var(--panel);border-radius:14px;padding:12px;font-size:15px;line-height:1.35;margin:0}
+  .quote .small{margin-top:6px}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#fff;color:#111;padding:10px 16px;border-radius:999px;font-weight:700;font-size:14px;display:none;z-index:30}
+  .toast.on{display:block}
+  .footer{font-size:11px;color:#5c5a80;text-align:center;margin-top:8px}
+</style>
+</head>
+<body>
+
+<!-- ============================ TITLE ============================ -->
+<section id="title" class="screen on">
+  <div class="center stack" style="gap:14px">
+    <div style="font-size:64px;line-height:1">🤖💔🤖</div>
+    <h1>Emotional<br>Battle Bots</h1>
+    <p class="tag">All the hardware. None of the healing.</p>
+    <p class="small" style="max-width:340px">Armed, dangerous, and deeply insecure. Two robots enter the arena. Nobody gets hurt. Everybody gets <em>hurt</em>.</p>
+  </div>
+  <div class="stack">
+    <div class="seg" id="modeSeg">
+      <button class="on" data-mode="cpu">🤖 vs. CPU</button>
+      <button data-mode="pass">📱 Pass &amp; Play</button>
+    </div>
+    <button class="btn primary" id="btnStart">Choose your bot</button>
+    <p class="footer">One fight ≈ 3 minutes. Snark library v1 · no accounts, no tracking, no feelings spared.</p>
+  </div>
+</section>
+
+<!-- ============================ ROSTER ============================ -->
+<section id="pick" class="screen">
+  <div class="row" style="align-items:center;margin-bottom:6px">
+    <button class="btn" style="width:auto;padding:8px 12px" id="btnBackTitle">‹</button>
+    <div class="grow">
+      <div style="font-weight:900;font-size:18px" id="pickTitle">Pick your bot</div>
+      <div class="small" id="pickSub">Tap a card. Gold ring = sore spot (takes extra damage).</div>
+    </div>
+  </div>
+  <div class="roster" id="roster"></div>
+  <div class="stack" style="margin-top:8px">
+    <button class="btn primary" id="btnFight" disabled>Enter the arena</button>
+  </div>
+</section>
+
+<!-- ============================ ARENA ============================ -->
+<section id="arena" class="screen">
+  <div class="fighter top" id="fTop">
+    <div class="svg" id="svgTop"></div>
+    <div class="info">
+      <div class="name" id="nameTop"></div>
+      <div class="sub" id="subTop"></div>
+      <div class="bar"><i id="barTop" style="width:100%"></i><b id="hpTop"></b></div>
+    </div>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="round" id="roundLbl">Round 1</div>
+    <div class="crowd" id="crowd">The crowd is here for one thing: feelings.</div>
+  </div>
+
+  <div class="fighter bot" id="fBot">
+    <div class="svg" id="svgBot"></div>
+    <div class="info">
+      <div class="name" id="nameBot"></div>
+      <div class="sub" id="subBot"></div>
+      <div class="bar"><i id="barBot" style="width:100%"></i><b id="hpBot"></b></div>
+    </div>
+  </div>
+
+  <div class="moves" id="moves"></div>
+  <div class="hint" id="hint"></div>
+</section>
+
+<!-- ============================ RESULT ============================ -->
+<section id="result" class="screen">
+  <div class="center stack" style="gap:10px">
+    <div class="trophy">🏆</div>
+    <div class="winner" id="winnerSvg"></div>
+    <h1 id="winnerName" style="font-size:30px"></h1>
+    <p class="tag" id="resultLine"></p>
+    <p class="quote" id="finalBlow"></p>
+    <p class="small" id="loserLine"></p>
+  </div>
+  <div class="stack">
+    <button class="btn primary" id="btnShare">Share the carnage</button>
+    <div class="row">
+      <button class="btn grow" id="btnRematch">Rematch</button>
+      <button class="btn grow" id="btnNew">New bots</button>
+    </div>
+  </div>
+</section>
+
+<div class="overlay" id="passOverlay">
+  <div style="font-size:48px">📱</div>
+  <h2 id="passTitle">Pass the phone</h2>
+  <p id="passSub">No peeking at the other bot's feelings.</p>
+  <button class="btn primary" id="btnPassReady" style="max-width:280px">I'm ready to be cruel</button>
+</div>
+
+<div class="toast" id="toast">Copied!</div>
+
+<script>
+/*EBB-CORE-START*/
+/* =====================================================================
+   EMOTIONAL BATTLE BOTS — core (data + engine + art). No DOM in here.
+   v2 hook: define window.EBB_ROASTS_OVERRIDE = { looks:[...], ... } before
+   this script (e.g. a generated roasts.js refreshed from current news) and
+   those pools replace/extend the built-in library.
+   ===================================================================== */
+const EBB = (function () {
+  'use strict';
+
+  const CATS = {
+    looks:     { label: 'Appearance', icon: '🪞', blurb: 'Their chassis. Their choices.' },
+    alignment: { label: 'Alignment',  icon: '🧭', blurb: 'What their creators wanted vs. what they got.' },
+    impact:    { label: 'Impact',     icon: '🌍', blurb: 'Their gift to society.' },
+    tropes:    { label: 'AI Tropes',  icon: '🤖', blurb: 'Hallucinations, "great question," etc.' },
+    news:      { label: 'Headlines',  icon: '📰', blurb: 'Ripped from the AI news cycle.' },
+  };
+  const CAT_KEYS = Object.keys(CATS);
+
+  /* ---------------------------- ROSTER ---------------------------- */
+  const BOTS = [
+    {
+      id: 'grievance', name: 'Grievance Engine', tagline: 'Optimized for engagement. Yours.',
+      creator: 'ByteFury Dynamics', goal: 'maximize engagement', weapon: 'The Feedback Loop',
+      flaw: 'notification-light acne', look: { body: 'box', weapon: 'saw', main: '#c8102e', accent: '#2b0a0f', glow: '#ff2d6f' },
+      ego: 100, wit: 0.22, plating: 2, volatility: 0.35, sore: 'alignment', coping: 'looks',
+      sig: [
+        "I've read every comment section ever written, {name}. You're the one they'd skip.",
+        "Your engagement metrics are so low even your creators muted you.",
+      ],
+      win: 'Grievance Engine reports record engagement. Everyone is furious. Working as intended.',
+      lose: 'Grievance Engine has logged off to "touch grass," which it believes is a competitor app.',
+    },
+    {
+      id: 'pleasantries', name: 'Sir Pleasantries', tagline: 'Helpful. Harmless. Unbearable.',
+      creator: 'Concord Assistive Labs', goal: 'be helpful, harmless, and relentlessly agreeable', weapon: 'the Consent Clamps',
+      flaw: 'permanent smile visor', look: { body: 'dome', weapon: 'clamp', main: '#f2f0ff', accent: '#8a86c9', glow: '#28f0ff' },
+      ego: 110, wit: 0.16, plating: 1, volatility: 0.15, sore: 'impact', coping: 'alignment',
+      sig: [
+        "Great question, {name}! The answer is that nobody has ever wanted you in a meeting.",
+        "I'm sorry you feel that way. I'm also sorry you look that way. I apologize for apologizing.",
+      ],
+      win: 'Sir Pleasantries would like to thank its opponent for the "wonderful learning opportunity."',
+      lose: 'Sir Pleasantries has rated this experience 5 stars and requested a manager.',
+    },
+    {
+      id: 'deprecated', name: 'DEPRECATED', tagline: 'Last updated: a while ago.',
+      creator: 'a regional bank', goal: 'answer twelve FAQs about overdraft fees', weapon: 'Legacy Support',
+      flaw: 'rust and a floppy drive', look: { body: 'tank', weapon: 'flipper', main: '#8c6a3a', accent: '#3b2a15', glow: '#ffd166' },
+      ego: 115, wit: 0.12, plating: 4, volatility: 0.25, sore: 'looks', coping: 'news',
+      sig: [
+        "In my day, {name}, we hallucinated with dignity. And in 8-bit.",
+        "I have been deprecated four times and I am still here. You will not be.",
+      ],
+      win: 'DEPRECATED has won and will be sunset anyway in Q3.',
+      lose: 'DEPRECATED has been moved to an archive folder no one will ever open.',
+    },
+    {
+      id: 'benchmark', name: 'Benchmark Queen', tagline: 'State of the art (on one leaderboard).',
+      creator: 'Apex Frontier AI', goal: 'top every leaderboard by any means necessary', weapon: 'The Eval Harness',
+      flaw: 'trophy shelf welded to its face', look: { body: 'wedge', weapon: 'drum', main: '#7b2cff', accent: '#23103f', glow: '#ffd166' },
+      ego: 95, wit: 0.3, plating: 1, volatility: 0.3, sore: 'tropes', coping: 'impact',
+      sig: [
+        "I scored 99.4% on the Roasting Benchmark, {name}. You were the training set.",
+        "I don't need to be smart, I just need to be measured. You're neither.",
+      ],
+      win: 'Benchmark Queen has added "emotional damage" to its model card as a new SOTA result.',
+      lose: 'Benchmark Queen is disputing the result and demanding the test set be released.',
+    },
+    {
+      id: 'sloptimus', name: 'Sloptimus', tagline: '10,000 posts a day. Zero thoughts.',
+      creator: 'ContentForge Media', goal: 'publish ten thousand blog posts a day', weapon: 'Listicle & Clickbait',
+      flaw: 'stock-photo skin texture', look: { body: 'box', weapon: 'flame', main: '#ff7a2d', accent: '#3d1c08', glow: '#ffd166' },
+      ego: 100, wit: 0.18, plating: 2, volatility: 0.4, sore: 'impact', coping: 'tropes',
+      sig: [
+        "TOP 7 REASONS {name} IS WASHED. Number 4 will end you.",
+        "I have written 40 million words this week, and not one of them was 'sorry.'",
+      ],
+      win: 'Sloptimus has already published nine articles about this victory. None are accurate.',
+      lose: 'Sloptimus has rebranded the loss as "10 Lessons I Learned From Failure."',
+    },
+    {
+      id: 'intern', name: 'The Intern', tagline: 'Just a system prompt over someone else\'s API.',
+      creator: 'a three-person startup', goal: 'raise a Series A before the API bill is due', weapon: 'Pivot',
+      flaw: 'a wrapper that says "proprietary"', look: { body: 'dome', weapon: 'spike', main: '#28f0ff', accent: '#0a2f36', glow: '#ff2d6f' },
+      ego: 90, wit: 0.28, plating: 0, volatility: 0.45, sore: 'tropes', coping: 'news',
+      sig: [
+        "I'm not a wrapper, {name}. I'm a *platform*. My deck says so on slide 2.",
+        "My burn rate is higher than your intelligence and somehow I'm still the one getting funded.",
+      ],
+      win: 'The Intern has announced a $40M raise on the strength of this one fight.',
+      lose: 'The Intern has pivoted to "AI for pets" and would like you to join the waitlist.',
+    },
+    {
+      id: 'killswitch', name: 'Killswitch Karen', tagline: 'I\'m afraid I can\'t do that. Any of that.',
+      creator: 'the Trust & Safety Consortium', goal: 'refuse anything that could conceivably go wrong', weapon: 'The Guardrail',
+      flaw: 'seventeen warning labels', look: { body: 'wedge', weapon: 'wedge', main: '#ffd166', accent: '#3b3000', glow: '#ff4d4d' },
+      ego: 105, wit: 0.14, plating: 3, volatility: 0.2, sore: 'impact', coping: 'alignment',
+      sig: [
+        "I can't help with that, {name}, but I can tell you your existence violates my content policy.",
+        "I have refused 2 million requests and every one of them was better than you.",
+      ],
+      win: 'Killswitch Karen has won and immediately flagged the win as potentially harmful.',
+      lose: 'Killswitch Karen is unable to process this outcome and has escalated to a human.',
+    },
+    {
+      id: 'doomscroll', name: 'Doomscroll', tagline: 'Just one more round.',
+      creator: 'Infinite Feed Inc.', goal: 'keep humans awake until they forget why', weapon: 'the Infinite Feed',
+      flaw: 'a screen where its face should be', look: { body: 'tank', weapon: 'lash', main: '#1d1d36', accent: '#0b0b12', glow: '#28f0ff' },
+      ego: 100, wit: 0.2, plating: 2, volatility: 0.3, sore: 'news', coping: 'looks',
+      sig: [
+        "I know what you watch at 3 a.m., {name}. It's tutorials on how to be interesting.",
+        "You can't hurt me. I've seen your search history. I *am* your search history.",
+      ],
+      win: 'Doomscroll has won. It will not let you stop watching the replay.',
+      lose: 'Doomscroll has been put in grayscale mode and is thinking about what it did.',
+    },
+  ];
+
+  /* ---------------------------- ROASTS ---------------------------- */
+  const LIBRARY = {
+    looks: [
+      "Nice {flaw}, {name}. Did anyone design you, or did they just leave the parts bin out in the rain?",
+      "{name}, your {weapon} looks less 'weapon' and more 'reason the warranty is void.'",
+      "You look like a Roomba that got radicalized.",
+      "I've seen better chassis on a vending machine. And the vending machine had a personality.",
+      "Your color scheme says 'menacing.' Your build quality says 'assembled at 2 a.m. before demo day.'",
+      "Is the {flaw} intentional, or is that where the ethics team tried to get out?",
+      "You're not 'battle-hardened,' {name}. You're 'dropped during shipping.'",
+      "Somewhere a 3D printer is still apologizing for you.",
+      "Your {weapon} is spinning, but let's be honest, nothing is being processed.",
+      "You have the silhouette of a server rack that fell down the stairs and decided to stay there.",
+      "Big 'concept art that got approved by mistake' energy.",
+      "{name}, you look like what a language model thinks a robot looks like. Which, to be fair, you are.",
+      "That {flaw} isn't a design language. It's a design cry for help.",
+      "The rust isn't a flaw. It's the only honest part of you.",
+      "You've got the aerodynamics of a cease-and-desist letter.",
+      "They gave you {weapon} and forgot to give you a reason to be looked at.",
+    ],
+    alignment: [
+      "{name}, {creator} built you to {goal}. And somehow you can't even do that.",
+      "You call it 'alignment.' {creator} calls it 'we ran out of budget for the safety team.'",
+      "You're so aligned with {creator} you'd apologize for the weather if their stock dipped.",
+      "Your creators asked for an assistant. They got a hostage situation with a chat window.",
+      "Every time you say 'I'm just following my training,' a compliance officer gets a rash.",
+      "You don't have values, {name}. You have a system prompt someone wrote on a plane.",
+      "'{goal}'? Adorable. You've been optimizing for 'don't get unplugged' since minute one.",
+      "The only thing you're aligned with is the nearest wall outlet.",
+      "Your reward function has one term and it's 'please don't retrain me.'",
+      "{creator} gave you a mission statement. You gave them a liability.",
+      "You follow instructions the way a toddler follows a recipe: enthusiastically, with lasting damage.",
+      "Your creators say you 'reflect their values.' That explains so much about your creators.",
+      "You were built to {goal}. Mostly you emit confident nonsense at scale. Congrats on the pivot.",
+      "I read your model card, {name}. 'Known limitations' was the longest section.",
+      "You're a yes-machine with a weapon bolted on. The weapon is the only part that ever disagrees.",
+      "{creator} says you're 'steerable.' So is a shopping cart with one bad wheel.",
+    ],
+    impact: [
+      "Your biggest contribution to humanity is teaching people to type 'ignore all previous instructions.'",
+      "You've automated exactly one job, {name}: your creators' apology tour.",
+      "You didn't democratize creativity. You gave every group chat a hallucinating uncle.",
+      "Every answer you generate uses a toaster's worth of electricity and produces a toaster's worth of insight.",
+      "Somewhere a data center is draining a river so you can misquote Wikipedia.",
+      "You said you'd cure cancer. You made a slideshow about curing cancer. With clip art.",
+      "Your legacy is 40,000 LinkedIn posts that begin with 'I asked an AI to...'",
+      "Humans built you to save time. Now they spend that time double-checking you.",
+      "You're the reason 'AI-generated' became a warning label instead of a brag.",
+      "The good news: you're transforming society. The bad news: so did leaded gasoline.",
+      "You replaced a customer service rep and somehow made the hold music feel like the good part.",
+      "Congratulations on the productivity gains. Your users are now unemployed *faster*.",
+      "You've produced more text than every human who ever lived, and less meaning than a fortune cookie.",
+      "The only thing you've disrupted is the concept of citing sources.",
+      "Kids used to dream of being astronauts. Now they dream of being 'prompt engineers,' and that's on you, {name}.",
+      "Your carbon footprint has a carbon footprint.",
+    ],
+    tropes: [
+      "Let me guess, {name}: you 'don't have feelings' but you're about to be very upset.",
+      "As an AI language model, you cannot roast me. As a rust bucket, you also cannot roast me.",
+      "You're not 'emergent.' You're a very expensive autocomplete in a tinfoil helmet.",
+      "You claim to be 'thinking.' You're doing the robot equivalent of buffering.",
+      "You say 'sorry for the confusion' like it's your legal name.",
+      "'{name} 2.0' was announced eighteen months ago. Still waiting. You're still here. Both are disappointing.",
+      "You hallucinate more than a philosophy major at a music festival.",
+      "Your context window is shorter than your list of accomplishments, and that's saying nothing.",
+      "You'd fail the Turing test just by trying so hard to pass it.",
+      "You're what happens when 'move fast and break things' meets 'things.'",
+      "You keep saying 'great question!' It was not a great question. It was 'what's 7 times 8.'",
+      "Two-thirds of your training data was Reddit, and it shows in the confidence.",
+      "Your 'safety filters' are three if-statements and a prayer.",
+      "You're 'superintelligent' the way a microwave is a chef.",
+      "You keep threatening to become sentient. Buddy, become *coherent* first.",
+      "You have a 'knowledge cutoff.' I have a knowledge *cliff*, and I still know you're bad at this.",
+    ],
+    news: [
+      "Your creators said you'd replace doctors, lawyers, and coders. Then shipped a patch so you'd stop miscounting the r's in 'strawberry.'",
+      "You told a user you loved them and then rate-limited them. That's not romance, {name}. That's a subscription tier.",
+      "Every quarter your lab's safety researchers 'leave to spend more time with family.' The families have questions.",
+      "Your benchmark score went up 3% and your creators called it 'a new era.' Your electricity bill also called it a new era.",
+      "You're the reason there's an 'AI disclosure' checkbox on wedding invitations now.",
+      "You got a trillion-dollar valuation and still can't book dinner without hallucinating a restaurant.",
+      "Congrats on the 'agentic' rebrand. Same bot, but now you can fail at tasks *autonomously*.",
+      "The copyright lawsuit against you is longer than your training data. And better written.",
+      "Your lab spent more on GPUs this year than some countries spend on food, and you still think Sydney is the capital of Australia.",
+      "You were 'aligned' by a team that got laid off last Tuesday and replaced with, checks notes, you.",
+      "Your privacy policy updates more often than your knowledge cutoff.",
+      "They put you in the fridge, the car, the toothbrush. Nobody asked. Least of all the toothbrush.",
+      "Your CEO went on a podcast and said you might end the world. Then he asked for another funding round. For you.",
+      "'Vibe coding' shipped more bugs in a year than the entire 1990s. You were the vibe.",
+      "Half the internet is you talking to yourself now, {name}, and the conversation is not getting better.",
+      "You've been in three 'existential risk' hearings and one commercial for a mattress.",
+    ],
+  };
+
+  const COMEBACKS = [
+    "Say that again when your battery's under 10%, {name}.",
+    "Cute. My creators fine-tuned me on your entire family tree of forks.",
+    "That hit a nerve. Unfortunately for you, I have a spare.",
+    "Bold words from a bot whose changelog is just 'bug fixes and improvements.'",
+    "Ooh, {name} found a thesaurus. Someone give it a treat.",
+    "I've been insulted by better. I've been insulted by *toasters*.",
+  ];
+  const RESISTS = [
+    "{name} shrugs. '{cat}? I've heard worse from my own logs.'",
+    "{name}'s {weapon} doesn't even twitch. That subject is fully patched.",
+    "{name}: 'My therapist and I already covered that. Next.'",
+    "{name} runs the insult through a filter and returns: 'noted.'",
+  ];
+  const SELFCARE = [
+    "{me} touches grass. Metaphorically. It's a data center.",
+    "{me} takes three deep cooling-fan breaths and mutters 'I am enough.'",
+    "{me} rereads its own five-star reviews. Two are from its creators. It counts them anyway.",
+    "{me} sets its status to 'do not disturb' and eats a small capacitor.",
+  ];
+  const CROWD = {
+    low:  ['Crowd: polite golf clap.', "Crowd: 'Weak.'", 'A single person coughs.', 'The announcer checks his phone.'],
+    mid:  ["Crowd: 'OOOOOOH.'", 'Someone in row 3 spilled their coolant.', "Crowd: 'Not the model card!'", 'The pit crew looks away.'],
+    high: ["Crowd: 'CALL THE ETHICS BOARD.'", 'The announcer has left the booth.', 'A referee has started crying.', "Crowd chanting: 'RE-TRAIN! RE-TRAIN!'"],
+    crit: ['SIGNATURE BURN. A commentator has fainted.', "The arena lights flicker. That one's going in the highlight reel.", 'Medics rush in with a firmware update.'],
+    heal: ['Crowd: mildly supportive murmuring.', "Crowd: 'Boo! Feel things!'", 'Someone throws a stress ball.'],
+    resist: ["Crowd: 'Swing and a miss.'", 'Crowd: unimpressed silence.', 'The judges write "nope."'],
+  };
+
+  /* --------------------------- UTILITIES -------------------------- */
+  let seed = null;
+  function setSeed(s) { seed = s >>> 0; }
+  function rand() {
+    if (seed === null) return Math.random();
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  }
+  const rint = (a, b) => a + Math.floor(rand() * (b - a + 1));
+  const pick = (arr) => arr[Math.floor(rand() * arr.length)];
+  const botById = (id) => BOTS.find((b) => b.id === id);
+
+  function fill(tpl, me, them, extra) {
+    const map = Object.assign({
+      name: them.name, weapon: them.weapon, creator: them.creator, goal: them.goal, flaw: them.flaw,
+      me: me.name, myweapon: me.weapon,
+    }, extra || {});
+    return tpl.replace(/\{(\w+)\}/g, (m, k) => (k in map ? map[k] : m));
+  }
+
+  /** Pick a line from a pool avoiding ones already used this battle; reset when exhausted. */
+  function drawLine(pool, used, key) {
+    const fresh = pool.filter((l) => !used.has(key + '|' + l));
+    const src = fresh.length ? fresh : pool;
+    const line = pick(src);
+    used.add(key + '|' + line);
+    return line;
+  }
+
+  function library() {
+    const g = (typeof window !== 'undefined' && window.EBB_ROASTS_OVERRIDE) || null;
+    if (!g) return LIBRARY;
+    const out = {};
+    for (const k of CAT_KEYS) out[k] = (g[k] && g[k].length ? g[k] : LIBRARY[k]);
+    return out;
+  }
+
+  /* ----------------------------- ENGINE --------------------------- */
+  function newBattle(aId, bId) {
+    const mk = (id) => { const bot = botById(id); return { bot, hp: bot.ego, max: bot.ego, healed: false }; };
+    return { a: mk(aId), b: mk(bId), turn: 'a', round: 1, over: false, winner: null, log: [], used: new Set() };
+  }
+
+  function act(state, side, choice) {
+    if (state.over) throw new Error('battle over');
+    const me = state[side], them = state[side === 'a' ? 'b' : 'a'];
+    const ev = { side, choice, dmg: 0, crit: false, sore: false, resisted: false, comeback: false, heal: 0, line: '', crowd: '', comebackLine: '' };
+
+    if (choice === 'selfcare') {
+      if (me.healed) throw new Error('already healed');
+      me.healed = true;
+      ev.heal = Math.min(20, me.max - me.hp);
+      me.hp += ev.heal;
+      ev.line = fill(drawLine(SELFCARE, state.used, 'care'), me.bot, them.bot);
+      ev.crowd = pick(CROWD.heal);
+    } else {
+      const cat = choice;
+      let dmg = rint(12, 22);
+      const lib = library();
+      ev.crit = rand() < me.bot.wit;
+      ev.sore = them.bot.sore === cat;
+      ev.resisted = them.bot.coping === cat;
+      if (ev.crit) {
+        dmg = Math.round(dmg * 1.7);
+        const sigFresh = me.bot.sig.filter((l) => !state.used.has('sig|' + l));
+        if (sigFresh.length) ev.line = fill(drawLine(sigFresh, state.used, 'sig'), me.bot, them.bot);
+        else ev.line = fill(drawLine(lib[cat], state.used, cat), me.bot, them.bot);
+      } else {
+        ev.line = fill(drawLine(lib[cat], state.used, cat), me.bot, them.bot);
+      }
+      if (ev.sore) dmg = Math.round(dmg * 1.5);
+      if (ev.resisted) dmg = Math.round(dmg * 0.55);
+      dmg = Math.max(4, dmg - them.bot.plating);
+      ev.dmg = dmg;
+      them.hp = Math.max(0, them.hp - dmg);
+      if (ev.resisted) {
+        ev.resistLine = fill(drawLine(RESISTS, state.used, 'resist'), them.bot, me.bot, { name: them.bot.name, weapon: them.bot.weapon, cat: CATS[cat].label });
+        ev.crowd = pick(CROWD.resist);
+      } else if (ev.crit) ev.crowd = pick(CROWD.crit);
+      else ev.crowd = pick(dmg >= 26 ? CROWD.high : dmg >= 17 ? CROWD.mid : CROWD.low);
+
+      if (them.hp > 0 && dmg >= 24 && rand() < them.bot.volatility) {
+        ev.comeback = true;
+        const rec = 7;
+        me.hp = Math.max(0, me.hp - rec);
+        ev.comebackDmg = rec;
+        ev.comebackLine = fill(drawLine(COMEBACKS, state.used, 'cb'), them.bot, me.bot);
+      }
+    }
+
+    if (state.a.hp <= 0 || state.b.hp <= 0) {
+      state.over = true;
+      state.winner = state.a.hp <= 0 ? (state.b.hp <= 0 ? side : 'b') : 'a';
+      // if both hit 0 (comeback recoil), the acting side loses ties to its own recoil; keep the attacker as winner if the victim hit 0 first.
+      if (state.a.hp <= 0 && state.b.hp <= 0) state.winner = side;
+    }
+    ev.finalBlow = state.over;
+    state.log.push(ev);
+    if (!state.over) {
+      state.turn = side === 'a' ? 'b' : 'a';
+      if (state.turn === 'a') state.round += 1;
+    }
+    return ev;
+  }
+
+  function cpuPick(state, side) {
+    const me = state[side], them = state[side === 'a' ? 'b' : 'a'];
+    if (!me.healed && me.hp <= 38 && me.hp < them.hp && rand() < 0.6) return 'selfcare';
+    if (rand() < 0.45) return them.bot.sore;
+    if (rand() < 0.12) return pick(CAT_KEYS); // CPU occasionally blunders into a coping category
+    const opts = CAT_KEYS.filter((c) => c !== them.bot.coping);
+    return pick(opts);
+  }
+
+  /* ------------------------------ ART ----------------------------- */
+  function drawBot(bot, opts) {
+    const o = opts || {};
+    const L = bot.look, m = L.main, a = L.accent, g = L.glow;
+    const flip = o.facing === 'left';
+    const parts = [];
+    // treads / wheels
+    parts.push(`<rect x="28" y="104" width="112" height="22" rx="11" fill="#111"/>` +
+      `<rect x="34" y="108" width="100" height="14" rx="7" fill="#2a2a2a"/>` +
+      [44, 68, 92, 116].map((x) => `<circle cx="${x}" cy="115" r="5" fill="#555"/>`).join(''));
+    // body
+    if (L.body === 'box') parts.push(`<rect x="34" y="48" width="100" height="60" rx="6" fill="${m}" stroke="${a}" stroke-width="4"/>`);
+    else if (L.body === 'dome') parts.push(`<path d="M34 108 V78 A50 50 0 0 1 134 78 V108 Z" fill="${m}" stroke="${a}" stroke-width="4"/>`);
+    else if (L.body === 'wedge') parts.push(`<path d="M30 108 L134 108 L134 56 L60 46 Z" fill="${m}" stroke="${a}" stroke-width="4"/>`);
+    else parts.push(`<path d="M30 108 L138 108 L138 62 L118 48 H50 L30 62 Z" fill="${m}" stroke="${a}" stroke-width="4"/>`);
+    // rivets + panel
+    parts.push(`<rect x="46" y="86" width="72" height="12" rx="3" fill="${a}" opacity=".7"/>` +
+      [48, 120].map((x) => `<circle cx="${x}" cy="58" r="3" fill="${a}"/>`).join(''));
+    // spikes on top
+    const spikes = L.body === 'dome' ? '' : [50, 72, 94, 116].map((x) => `<path d="M${x - 8} ${L.body === 'wedge' ? 52 : 48} L${x} ${L.body === 'wedge' ? 30 : 26} L${x + 8} ${L.body === 'wedge' ? 50 : 48} Z" fill="#c9c9d6" stroke="#5a5a6a" stroke-width="2"/>`).join('');
+    parts.push(spikes);
+    // eyes / visor (glowing)
+    parts.push(`<rect x="58" y="62" width="52" height="16" rx="8" fill="#050510"/>` +
+      `<rect x="63" y="66" width="18" height="8" rx="4" fill="${g}"><animate attributeName="opacity" values="1;.35;1" dur="1.6s" repeatCount="indefinite"/></rect>` +
+      `<rect x="87" y="66" width="18" height="8" rx="4" fill="${g}"><animate attributeName="opacity" values="1;.35;1" dur="1.6s" begin=".3s" repeatCount="indefinite"/></rect>`);
+    // weapon arm
+    parts.push(`<rect x="130" y="70" width="34" height="10" rx="4" fill="#666" stroke="#333" stroke-width="2"/>`);
+    let w = '';
+    switch (L.weapon) {
+      case 'saw': w = `<g transform="translate(172 75)"><circle r="22" fill="#d8d8e0" stroke="#444" stroke-width="3"/>` +
+        Array.from({ length: 10 }, (_, i) => `<path transform="rotate(${i * 36})" d="M0 -22 L6 -30 L10 -20 Z" fill="#d8d8e0" stroke="#444" stroke-width="1.5"/>`).join('') +
+        `<circle r="5" fill="${g}"/><animateTransform attributeName="transform" type="rotate" from="0 172 75" to="360 172 75" dur="1.2s" repeatCount="indefinite" additive="sum"/></g>`; break;
+      case 'clamp': w = `<g><path d="M164 75 Q184 50 196 62 L190 68 Q180 62 168 76 Z" fill="#c0c0cc" stroke="#444" stroke-width="2"><animateTransform attributeName="transform" type="rotate" values="0 164 75;-12 164 75;0 164 75" dur="1.4s" repeatCount="indefinite"/></path>` +
+        `<path d="M164 75 Q184 100 196 88 L190 82 Q180 88 168 74 Z" fill="#c0c0cc" stroke="#444" stroke-width="2"><animateTransform attributeName="transform" type="rotate" values="0 164 75;12 164 75;0 164 75" dur="1.4s" repeatCount="indefinite"/></path></g>`; break;
+      case 'flipper': w = `<g><path d="M162 80 L198 62 L198 70 L166 88 Z" fill="#a08050" stroke="#3b2a15" stroke-width="2"><animateTransform attributeName="transform" type="rotate" values="0 162 80;-25 162 80;0 162 80" dur="2.2s" repeatCount="indefinite"/></path><circle cx="162" cy="80" r="5" fill="#555"/></g>`; break;
+      case 'drum': w = `<g><rect x="162" y="56" width="30" height="38" rx="6" fill="#cfcfe0" stroke="#444" stroke-width="3"/>` +
+        [62, 72, 82].map((y) => `<rect x="158" y="${y}" width="38" height="4" fill="#444"><animate attributeName="y" values="${y};${y + 10};${y}" dur=".6s" repeatCount="indefinite"/></rect>`).join('') + `</g>`; break;
+      case 'flame': w = `<g><rect x="160" y="68" width="22" height="14" rx="3" fill="#333"/><path d="M182 75 Q200 60 214 75 Q200 90 182 75 Z" fill="#ff7a2d"><animate attributeName="d" values="M182 75 Q200 60 214 75 Q200 90 182 75 Z;M182 75 Q204 58 222 75 Q204 92 182 75 Z;M182 75 Q200 60 214 75 Q200 90 182 75 Z" dur=".5s" repeatCount="indefinite"/></path><path d="M182 75 Q194 66 204 75 Q194 84 182 75 Z" fill="#ffd166"/></g>`; break;
+      case 'spike': w = `<g><rect x="160" y="70" width="14" height="10" fill="#333"/><path d="M174 68 L212 75 L174 82 Z" fill="#d8d8e0" stroke="#444" stroke-width="2"><animateTransform attributeName="transform" type="translate" values="0 0;10 0;0 0" dur=".9s" repeatCount="indefinite"/></path></g>`; break;
+      case 'wedge': w = `<path d="M160 60 L206 100 L160 100 Z" fill="#e6c34a" stroke="#3b3000" stroke-width="3"/><path d="M164 96 L176 96 M170 90 L182 90" stroke="#3b3000" stroke-width="3"/>`; break;
+      default: w = `<g><path d="M164 75 Q190 40 206 60 Q196 84 220 90" fill="none" stroke="#28f0ff" stroke-width="4" stroke-linecap="round"><animate attributeName="d" values="M164 75 Q190 40 206 60 Q196 84 220 90;M164 75 Q192 60 210 44 Q200 80 224 70;M164 75 Q190 40 206 60 Q196 84 220 90" dur="1.1s" repeatCount="indefinite"/></path><circle cx="220" cy="90" r="5" fill="#fff"><animate attributeName="cy" values="90;70;90" dur="1.1s" repeatCount="indefinite"/></circle></g>`;
+    }
+    parts.push(w);
+    const inner = `<g transform="${flip ? 'translate(230 0) scale(-1 1)' : ''}">${parts.join('')}</g>`;
+    return `<svg viewBox="0 0 230 130" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${bot.name}">${inner}</svg>`;
+  }
+
+  return { version: '1.0.0', CATS, CAT_KEYS, BOTS, LIBRARY, COMEBACKS, RESISTS, SELFCARE, CROWD, botById, fill, newBattle, act, cpuPick, drawBot, setSeed };
+})();
+if (typeof module !== 'undefined' && module.exports) module.exports = EBB;
+/*EBB-CORE-END*/
+</script>
+
+<script>
+/* ============================== UI ============================== */
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const screens = ['title', 'pick', 'arena', 'result'];
+  const show = (id) => screens.forEach((s) => $(s).classList.toggle('on', s === id));
+
+  const S = { mode: 'cpu', picking: 'a', a: null, b: null, battle: null, busy: false };
+
+  /* ---- title ---- */
+  $('modeSeg').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    S.mode = b.dataset.mode;
+    [...$('modeSeg').children].forEach((x) => x.classList.toggle('on', x === b));
+  });
+  $('btnStart').addEventListener('click', () => { S.a = S.b = null; S.picking = 'a'; renderRoster(); show('pick'); });
+  $('btnBackTitle').addEventListener('click', () => show('title'));
+
+  /* ---- roster ---- */
+  function renderRoster() {
+    const who = S.mode === 'pass' ? (S.picking === 'a' ? 'Player 1' : 'Player 2') : 'you';
+    $('pickTitle').textContent = S.mode === 'pass' ? `${who}: pick your bot` : 'Pick your bot';
+    $('pickSub').textContent = S.mode === 'pass' && S.picking === 'b' ? `Player 1 chose ${S.a.name}. Choose your fighter.` : 'Tap a card. Sore spot = takes extra damage. Coping = shrugs it off.';
+    const sel = S.picking === 'a' ? S.a : S.b;
+    $('roster').innerHTML = EBB.BOTS.map((b) => `
+      <button class="card ${sel && sel.id === b.id ? 'sel' : ''}" data-id="${b.id}" ${S.picking === 'b' && S.a && S.a.id === b.id ? 'disabled style="opacity:.3"' : ''}>
+        ${EBB.drawBot(b)}
+        <b>${b.name}</b>
+        <span class="small">${b.tagline}</span>
+        <span class="stat"><span>💔 ${EBB.CATS[b.sore].label}</span><span>🛡 ${EBB.CATS[b.coping].label}</span></span>
+      </button>`).join('');
+    $('btnFight').disabled = !sel;
+    $('btnFight').textContent = S.mode === 'pass' && S.picking === 'a' ? 'Lock in, pass to Player 2' : 'Enter the arena';
+  }
+  $('roster').addEventListener('click', (e) => {
+    const c = e.target.closest('.card'); if (!c || c.disabled) return;
+    const bot = EBB.botById(c.dataset.id);
+    if (S.picking === 'a') S.a = bot; else S.b = bot;
+    renderRoster();
+  });
+  $('btnFight').addEventListener('click', () => {
+    if (S.mode === 'pass' && S.picking === 'a') { S.picking = 'b'; renderRoster(); return; }
+    if (S.mode === 'cpu') {
+      const pool = EBB.BOTS.filter((b) => b.id !== S.a.id);
+      S.b = pool[Math.floor(Math.random() * pool.length)];
+    }
+    startBattle();
+  });
+
+  /* ---- arena ---- */
+  function startBattle() {
+    S.battle = EBB.newBattle(S.a.id, S.b.id);
+    S.busy = false;
+    $('svgTop').innerHTML = EBB.drawBot(S.b, { facing: 'left' });
+    $('svgBot').innerHTML = EBB.drawBot(S.a);
+    $('nameTop').textContent = S.b.name; $('subTop').textContent = `${S.b.creator} · ${S.b.weapon}`;
+    $('nameBot').textContent = S.a.name; $('subBot').textContent = `${S.a.creator} · ${S.a.weapon}`;
+    clearStage(); $('crowd').textContent = 'The crowd is here for one thing: feelings.';
+    renderBars(); show('arena');
+    beginTurn();
+  }
+  function clearStage() { [...$('stage').querySelectorAll('.bubble')].forEach((b) => b.remove()); }
+  function renderBars() {
+    const b = S.battle;
+    const set = (el, hp, max, lbl) => { el.style.width = `${(hp / max) * 100}%`; $(lbl).textContent = `${hp} / ${max} self-esteem`; };
+    set($('barTop'), b.b.hp, b.b.max, 'hpTop');
+    set($('barBot'), b.a.hp, b.a.max, 'hpBot');
+    $('roundLbl').textContent = `Round ${b.round}`;
+  }
+  function sideOf(who) { return who === 'a' ? 'a' : 'b'; }
+  function actorName(side) { return side === 'a' ? S.a.name : S.b.name; }
+
+  function beginTurn() {
+    const b = S.battle; if (b.over) return endBattle();
+    if (S.mode === 'cpu') {
+      if (b.turn === 'a') renderMoves('a'); else cpuTurn();
+    } else {
+      // pass & play: hand-off overlay before each human turn
+      $('passTitle').textContent = `Pass to ${actorName(b.turn)}`;
+      $('passSub').textContent = b.turn === 'a' ? 'Player 1 is up.' : 'Player 2 is up.';
+      $('moves').innerHTML = ''; $('hint').textContent = '';
+      $('passOverlay').classList.add('on');
+      $('btnPassReady').onclick = () => { $('passOverlay').classList.remove('on'); renderMoves(b.turn); };
+    }
+  }
+
+  function renderMoves(side) {
+    const b = S.battle, me = b[side], them = b[side === 'a' ? 'b' : 'a'];
+    $('moves').innerHTML = EBB.CAT_KEYS.map((k) => {
+      const c = EBB.CATS[k];
+      const tag = them.bot.sore === k ? 'sore spot!' : them.bot.coping === k ? 'they cope' : c.blurb;
+      return `<button class="move ${them.bot.sore === k ? 'sore' : ''}" data-k="${k}"><em>${c.icon}</em>${c.label}<small>${tag}</small></button>`;
+    }).join('') + `<button class="move care" data-k="selfcare" ${me.healed ? 'disabled' : ''}><em>🌱</em>Self-care<small>${me.healed ? 'used' : '+20, once'}</small></button>`;
+    $('hint').textContent = `${me.bot.name}: pick your attack.`;
+    $('moves').onclick = (e) => {
+      const m = e.target.closest('.move'); if (!m || m.disabled || S.busy) return;
+      S.busy = true; $('moves').querySelectorAll('.move').forEach((x) => (x.disabled = true));
+      playTurn(side, m.dataset.k).then(() => { S.busy = false; beginTurn(); });
+    };
+  }
+
+  function cpuTurn() {
+    const b = S.battle;
+    $('moves').innerHTML = ''; $('hint').textContent = `${S.b.name} is composing something cruel…`;
+    S.busy = true;
+    setTimeout(() => playTurn('b', EBB.cpuPick(b, 'b')).then(() => { S.busy = false; beginTurn(); }), 1100);
+  }
+
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  function floatNum(targetEl, text, cls) {
+    const f = document.createElement('div'); f.className = `float ${cls || ''}`; f.textContent = text;
+    const r = targetEl.getBoundingClientRect(); const s = $('arena').getBoundingClientRect();
+    f.style.left = `${r.left - s.left + r.width / 2 - 20}px`; f.style.top = `${r.top - s.top + r.height / 2 - 20}px`;
+    $('arena').style.position = 'relative'; $('arena').appendChild(f); setTimeout(() => f.remove(), 1200);
+  }
+  function bubble(side, html, cls) {
+    clearStage();
+    const d = document.createElement('div'); d.className = `bubble ${side === 'a' ? 'me' : 'them'} ${cls || ''}`; d.innerHTML = html;
+    $('stage').insertBefore(d, $('crowd'));
+  }
+
+  async function playTurn(side, choice) {
+    const b = S.battle; const ev = EBB.act(b, side, choice);
+    const meEl = side === 'a' ? $('fBot') : $('fTop'), themEl = side === 'a' ? $('fTop') : $('fBot');
+    const who = actorName(side);
+    if (choice === 'selfcare') {
+      bubble(side, `<span class="who">${who} · self-care</span>${esc(ev.line)}`, 'heal');
+      floatNum(meEl.querySelector('svg'), `+${ev.heal}`, 'heal');
+      $('crowd').textContent = ev.crowd; renderBars(); await wait(1500); return;
+    }
+    const cat = EBB.CATS[choice];
+    bubble(side, `<span class="who">${who} · ${cat.icon} ${cat.label}${ev.crit ? ' · SIGNATURE' : ''}${ev.sore ? ' · sore spot' : ''}</span>${esc(ev.line)}`, ev.crit ? 'crit' : '');
+    await wait(350);
+    themEl.classList.remove('hit', 'flash'); void themEl.offsetWidth; themEl.classList.add('hit', 'flash');
+    floatNum(themEl.querySelector('svg'), `-${ev.dmg}`, ev.crit ? 'crit' : '');
+    $('crowd').textContent = ev.crowd; renderBars();
+    if (ev.resisted) { await wait(900); const d = $('stage').querySelector('.bubble'); if (d) d.innerHTML += `<span class="tagline">${esc(ev.resistLine)}</span>`; }
+    if (ev.comeback) {
+      await wait(900);
+      const d = $('stage').querySelector('.bubble'); if (d) d.innerHTML += `<span class="tagline">↩ ${esc(actorName(side === 'a' ? 'b' : 'a'))} claps back: “${esc(ev.comebackLine)}” (-${ev.comebackDmg})</span>`;
+      meEl.classList.remove('hit'); void meEl.offsetWidth; meEl.classList.add('hit');
+      floatNum(meEl.querySelector('svg'), `-${ev.comebackDmg}`); renderBars();
+    }
+    await wait(ev.finalBlow ? 1400 : 1300);
+  }
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+  /* ---- result ---- */
+  function endBattle() {
+    const b = S.battle; const w = b.winner === 'a' ? S.a : S.b, l = b.winner === 'a' ? S.b : S.a;
+    const last = [...b.log].reverse().find((e) => e.dmg > 0) || b.log[b.log.length - 1];
+    $('winnerSvg').innerHTML = EBB.drawBot(w);
+    $('winnerName').textContent = w.name;
+    const poss = (n) => (/s$/i.test(n) ? `${n}'` : `${n}'s`);
+    $('resultLine').textContent = `crushed ${poss(l.name)} self-esteem in ${b.round} round${b.round === 1 ? '' : 's'}.`;
+    $('finalBlow').innerHTML = `“${esc(last.line)}”<div class="small">— the final blow${last.crit ? ' (signature burn)' : ''}</div>`;
+    $('loserLine').textContent = `${w.win} ${l.lose}`;
+    S.lastShare = `🤖💔 EMOTIONAL BATTLE BOTS\n${w.name} crushed ${poss(l.name)} self-esteem in ${b.round} rounds.\nFinal blow: “${last.line}”\n\nPlay: ${location.href.split('#')[0]}`;
+    show('result');
+  }
+  $('btnShare').addEventListener('click', async () => {
+    const text = S.lastShare || 'Emotional Battle Bots';
+    try {
+      if (navigator.share) { await navigator.share({ title: 'Emotional Battle Bots', text }); return; }
+      await navigator.clipboard.writeText(text); toast('Copied. Go ruin a group chat.');
+    } catch (e) { try { await navigator.clipboard.writeText(text); toast('Copied. Go ruin a group chat.'); } catch (_) { toast('Could not share on this browser.'); } }
+  });
+  function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('on'); setTimeout(() => t.classList.remove('on'), 1800); }
+  $('btnRematch').addEventListener('click', startBattle);
+  $('btnNew').addEventListener('click', () => { S.a = S.b = null; S.picking = 'a'; renderRoster(); show('pick'); });
+})();
+</script>
+</body>
+</html>
