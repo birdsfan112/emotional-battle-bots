@@ -66,7 +66,7 @@
   .float.heal{color:var(--green)}
   @keyframes rise{0%{opacity:0;transform:translateY(10px) scale(.7)}15%{opacity:1;transform:translateY(0) scale(1.15)}100%{opacity:0;transform:translateY(-50px)}}
 
-  .stage{flex:1;display:flex;flex-direction:column;justify-content:center;gap:8px;min-height:120px;position:relative;padding:10px;border-radius:18px;
+  .stage{flex:1;display:flex;flex-direction:column;justify-content:flex-start;gap:8px;min-height:120px;position:relative;padding:10px;border-radius:18px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
     border:1px dashed #33335e;background:
       radial-gradient(ellipse at 50% 55%,rgba(255,45,111,.10),transparent 60%),
       repeating-linear-gradient(0deg,transparent 0 22px,rgba(255,255,255,.025) 22px 23px),
@@ -79,8 +79,12 @@
   .bubble .who{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:800;margin-bottom:2px}
   .bubble .tagline{display:block;margin-top:6px;font-size:11.5px;color:#7a2d43;font-weight:700}
   @keyframes pop{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
-  .crowd{text-align:center;font-size:12.5px;color:var(--muted);font-style:italic;min-height:16px}
-  .round{text-align:center;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+  .crowd{text-align:center;font-size:13.5px;color:#c9c6ef;font-style:italic;min-height:16px;padding:2px 8px;animation:pop .25s}
+  .round{text-align:center;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);padding:4px 0;flex:none}
+  .stage .bubble,.stage .crowd{flex:none}
+  .next{flex:none;align-self:center;margin-top:4px;padding:10px 18px;border-radius:999px;background:var(--gold);color:#1a1400;font-weight:900;font-size:14px;letter-spacing:.02em;animation:pop .25s,pulse 1.4s 1s infinite;box-shadow:0 4px 16px rgba(255,209,102,.35)}
+  @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+  .stage.armed{cursor:pointer}
 
   .moves{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px}
   .move{padding:10px 6px;border-radius:12px;background:var(--panel2);border:1px solid #2c2c52;display:flex;flex-direction:column;align-items:center;gap:2px;font-weight:700;font-size:12.5px;line-height:1.1}
@@ -104,6 +108,8 @@
   .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#fff;color:#111;padding:10px 16px;border-radius:999px;font-weight:700;font-size:14px;display:none;z-index:30}
   .toast.on{display:block}
   .footer{font-size:11px;color:#5c5a80;text-align:center;margin-top:8px}
+  .mute{position:fixed;top:max(8px,env(safe-area-inset-top));right:10px;z-index:15;font-size:18px;line-height:36px;width:38px;height:38px;border-radius:999px;background:rgba(21,21,42,.85);border:1px solid #2c2c52;display:none;text-align:center}
+  body.fighting .mute{display:block}
 </style>
 </head>
 <body>
@@ -122,7 +128,7 @@
       <button data-mode="pass">📱 Pass &amp; Play</button>
     </div>
     <button class="btn primary" id="btnStart">Choose your bot</button>
-    <p class="footer">One fight ≈ 3 minutes. Snark library v1 · no accounts, no tracking, no feelings spared.</p>
+    <p class="footer">One fight ≈ 3 minutes · 🔊 sound on, mute in the arena · no accounts, no tracking, no feelings spared.</p>
   </div>
 </section>
 
@@ -152,10 +158,7 @@
     </div>
   </div>
 
-  <div class="stage" id="stage">
-    <div class="round" id="roundLbl">Round 1</div>
-    <div class="crowd" id="crowd">The crowd is here for one thing: feelings.</div>
-  </div>
+  <div class="stage" id="stage"></div>
 
   <div class="fighter bot" id="fBot">
     <div class="svg" id="svgBot"></div>
@@ -197,6 +200,7 @@
 </div>
 
 <div class="toast" id="toast">Copied!</div>
+<button class="mute" id="btnMute" aria-label="Toggle sound">🔊</button>
 
 <script>
 /*EBB-CORE-START*/
@@ -618,6 +622,45 @@ if (typeof module !== 'undefined' && module.exports) module.exports = EBB;
 
   const S = { mode: 'cpu', picking: 'a', a: null, b: null, battle: null, busy: false };
 
+  /* ---- sound: synthesized arena loop + sfx (Web Audio, no assets) ---- */
+  const Snd = (function () {
+    let ctx = null, master = null, playing = false, muted = false, timer = null, nextNote = 0, step = 0, noiseBuf = null;
+    const BPM = 126, STEP = 60 / BPM / 4; // sixteenth notes
+    // two-bar minor riff in semitones above A1; null = rest
+    const BASS = [0, null, 0, 0, null, 3, null, 0, 7, null, 0, 0, null, 10, 7, 3, 0, null, 0, 0, null, 3, null, 0, 12, null, 10, null, 7, null, 3, null];
+    function ensure() {
+      if (!ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false; ctx = new AC(); master = ctx.createGain(); master.gain.value = muted ? 0 : 0.22; master.connect(ctx.destination); }
+      if (ctx.state === 'suspended') ctx.resume();
+      return true;
+    }
+    function noise() { if (!noiseBuf) { noiseBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.2), ctx.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; } return noiseBuf; }
+    function kick(t, vol) { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.12); g.gain.setValueAtTime(vol || 0.9, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25); o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.3); }
+    function hat(t, open) { const b = ctx.createBufferSource(); b.buffer = noise(); const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 7000; const g = ctx.createGain(); g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t + (open ? 0.18 : 0.05)); b.connect(f); f.connect(g); g.connect(master); b.start(t); b.stop(t + 0.2); }
+    function snare(t) { const b = ctx.createBufferSource(); b.buffer = noise(); const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1800; const g = ctx.createGain(); g.gain.setValueAtTime(0.35, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.15); b.connect(f); f.connect(g); g.connect(master); b.start(t); b.stop(t + 0.2); }
+    function bassNote(t, semi) { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 55 * Math.pow(2, semi / 12); const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(1100, t); f.frequency.exponentialRampToValueAtTime(220, t + STEP * 0.9); const g = ctx.createGain(); g.gain.setValueAtTime(0.32, t); g.gain.exponentialRampToValueAtTime(0.001, t + STEP * 0.95); o.connect(f); f.connect(g); g.connect(master); o.start(t); o.stop(t + STEP); }
+    function schedule() {
+      while (nextNote < ctx.currentTime + 0.15) {
+        const s = step % 32;
+        if (s % 8 === 0 || s % 32 === 22) kick(nextNote);
+        if (s % 16 === 8) snare(nextNote);
+        if (s % 2 === 0) hat(nextNote, s % 8 === 6);
+        if (BASS[s] !== null) bassNote(nextNote, BASS[s]);
+        nextNote += STEP; step++;
+      }
+    }
+    function start() { if (!ensure() || playing) return; playing = true; nextNote = ctx.currentTime + 0.05; step = 0; timer = setInterval(schedule, 50); }
+    function stop() { playing = false; if (timer) clearInterval(timer); timer = null; }
+    function setMuted(m) { muted = m; if (master) master.gain.value = m ? 0 : 0.22; }
+    function hit(crit) {
+      if (!ensure()) return; const t = ctx.currentTime; kick(t, 1); snare(t + 0.02);
+      if (crit) { const o = ctx.createOscillator(); o.type = 'square'; o.frequency.setValueAtTime(880, t); o.frequency.exponentialRampToValueAtTime(180, t + 0.4); const g = ctx.createGain(); g.gain.setValueAtTime(0.18, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.45); o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.5); }
+    }
+    function heal() { if (!ensure()) return; const t = ctx.currentTime; [523, 659, 784].forEach((f, i) => { const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = f; const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t + i * 0.08); g.gain.linearRampToValueAtTime(0.18, t + i * 0.08 + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.08 + 0.4); o.connect(g); g.connect(master); o.start(t + i * 0.08); o.stop(t + i * 0.08 + 0.45); }); }
+    function fanfare() { if (!ensure()) return; const t = ctx.currentTime; [440, 554, 659, 880].forEach((f, i) => { const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = f; const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t + i * 0.12); g.gain.linearRampToValueAtTime(0.14, t + i * 0.12 + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.12 + (i === 3 ? 0.9 : 0.25)); o.connect(g); g.connect(master); o.start(t + i * 0.12); o.stop(t + i * 0.12 + 1); }); }
+    return { start, stop, setMuted, hit, heal, fanfare, get muted() { return muted; } };
+  })();
+  $('btnMute').addEventListener('click', () => { Snd.setMuted(!Snd.muted); $('btnMute').textContent = Snd.muted ? '🔇' : '🔊'; });
+
   /* ---- title ---- */
   $('modeSeg').addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b) return;
@@ -666,23 +709,42 @@ if (typeof module !== 'undefined' && module.exports) module.exports = EBB;
     $('svgBot').innerHTML = EBB.drawBot(S.a);
     $('nameTop').textContent = S.b.name; $('subTop').textContent = `${S.b.creator} · ${S.b.weapon}`;
     $('nameBot').textContent = S.a.name; $('subBot').textContent = `${S.a.creator} · ${S.a.weapon}`;
-    clearStage(); $('crowd').textContent = 'The crowd is here for one thing: feelings.';
-    renderBars(); show('arena');
+    $('stage').innerHTML = '';
+    S.shownRound = 0;
+    logLine('crowd', 'The crowd is here for one thing: feelings.');
+    renderBars(); show('arena'); document.body.classList.add('fighting');
+    Snd.start();
     beginTurn();
   }
-  function clearStage() { [...$('stage').querySelectorAll('.bubble')].forEach((b) => b.remove()); }
+  /* transcript: everything stays on screen; newest at the bottom, auto-scrolled */
+  function logEl(el) { $('stage').appendChild(el); requestAnimationFrame(() => { $('stage').scrollTop = $('stage').scrollHeight; }); return el; }
+  function logLine(cls, text) { const d = document.createElement('div'); d.className = cls; d.textContent = text; return logEl(d); }
+  function roundDivider() {
+    const b = S.battle;
+    if (b.round !== S.shownRound) { S.shownRound = b.round; logLine('round', `— Round ${b.round} —`); }
+  }
+  /* tap-to-continue: resolves when the player taps the prompt or anywhere in the transcript */
+  function waitForTap(label) {
+    return new Promise((resolve) => {
+      const btn = document.createElement('button'); btn.className = 'next'; btn.id = 'btnNext'; btn.textContent = label || 'Tap to continue ▸';
+      logEl(btn);
+      const stage = $('stage'); stage.classList.add('armed');
+      const done = () => { stage.classList.remove('armed'); stage.removeEventListener('click', done); btn.remove(); resolve(); };
+      stage.addEventListener('click', done);
+    });
+  }
   function renderBars() {
     const b = S.battle;
     const set = (el, hp, max, lbl) => { el.style.width = `${(hp / max) * 100}%`; $(lbl).textContent = `${hp} / ${max} self-esteem`; };
     set($('barTop'), b.b.hp, b.b.max, 'hpTop');
     set($('barBot'), b.a.hp, b.a.max, 'hpBot');
-    $('roundLbl').textContent = `Round ${b.round}`;
   }
   function sideOf(who) { return who === 'a' ? 'a' : 'b'; }
   function actorName(side) { return side === 'a' ? S.a.name : S.b.name; }
 
   function beginTurn() {
     const b = S.battle; if (b.over) return endBattle();
+    roundDivider();
     if (S.mode === 'cpu') {
       if (b.turn === 'a') renderMoves('a'); else cpuTurn();
     } else {
@@ -705,7 +767,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = EBB;
     $('hint').textContent = `${me.bot.name}: pick your attack.`;
     $('moves').onclick = (e) => {
       const m = e.target.closest('.move'); if (!m || m.disabled || S.busy) return;
-      S.busy = true; $('moves').querySelectorAll('.move').forEach((x) => (x.disabled = true));
+      S.busy = true; $('moves').querySelectorAll('.move').forEach((x) => (x.disabled = true)); $('hint').textContent = '';
       playTurn(side, m.dataset.k).then(() => { S.busy = false; beginTurn(); });
     };
   }
@@ -714,7 +776,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = EBB;
     const b = S.battle;
     $('moves').innerHTML = ''; $('hint').textContent = `${S.b.name} is composing something cruel…`;
     S.busy = true;
-    setTimeout(() => playTurn('b', EBB.cpuPick(b, 'b')).then(() => { S.busy = false; beginTurn(); }), 1100);
+    setTimeout(() => { $('hint').textContent = ''; playTurn('b', EBB.cpuPick(b, 'b')).then(() => { S.busy = false; beginTurn(); }); }, 900);
   }
 
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -725,9 +787,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = EBB;
     $('arena').style.position = 'relative'; $('arena').appendChild(f); setTimeout(() => f.remove(), 1200);
   }
   function bubble(side, html, cls) {
-    clearStage();
     const d = document.createElement('div'); d.className = `bubble ${side === 'a' ? 'me' : 'them'} ${cls || ''}`; d.innerHTML = html;
-    $('stage').insertBefore(d, $('crowd'));
+    return logEl(d);
   }
 
   async function playTurn(side, choice) {
@@ -736,23 +797,25 @@ if (typeof module !== 'undefined' && module.exports) module.exports = EBB;
     const who = actorName(side);
     if (choice === 'selfcare') {
       bubble(side, `<span class="who">${who} · self-care</span>${esc(ev.line)}`, 'heal');
-      floatNum(meEl.querySelector('svg'), `+${ev.heal}`, 'heal');
-      $('crowd').textContent = ev.crowd; renderBars(); await wait(1500); return;
+      floatNum(meEl.querySelector('svg'), `+${ev.heal}`, 'heal'); Snd.heal();
+      renderBars(); await wait(500); logLine('crowd', ev.crowd);
+      await waitForTap(); return;
     }
     const cat = EBB.CATS[choice];
-    bubble(side, `<span class="who">${who} · ${cat.icon} ${cat.label}${ev.crit ? ' · SIGNATURE' : ''}${ev.sore ? ' · sore spot' : ''}</span>${esc(ev.line)}`, ev.crit ? 'crit' : '');
+    const d = bubble(side, `<span class="who">${who} · ${cat.icon} ${cat.label}${ev.crit ? ' · SIGNATURE' : ''}${ev.sore ? ' · sore spot' : ''}</span>${esc(ev.line)}`, ev.crit ? 'crit' : '');
     await wait(350);
     themEl.classList.remove('hit', 'flash'); void themEl.offsetWidth; themEl.classList.add('hit', 'flash');
-    floatNum(themEl.querySelector('svg'), `-${ev.dmg}`, ev.crit ? 'crit' : '');
-    $('crowd').textContent = ev.crowd; renderBars();
-    if (ev.resisted) { await wait(900); const d = $('stage').querySelector('.bubble'); if (d) d.innerHTML += `<span class="tagline">${esc(ev.resistLine)}</span>`; }
+    floatNum(themEl.querySelector('svg'), `-${ev.dmg}`, ev.crit ? 'crit' : ''); Snd.hit(ev.crit);
+    renderBars();
+    if (ev.resisted) { await wait(600); d.innerHTML += `<span class="tagline">${esc(ev.resistLine)}</span>`; }
     if (ev.comeback) {
-      await wait(900);
-      const d = $('stage').querySelector('.bubble'); if (d) d.innerHTML += `<span class="tagline">↩ ${esc(actorName(side === 'a' ? 'b' : 'a'))} claps back: “${esc(ev.comebackLine)}” (-${ev.comebackDmg})</span>`;
+      await wait(600);
+      d.innerHTML += `<span class="tagline">↩ ${esc(actorName(side === 'a' ? 'b' : 'a'))} claps back: “${esc(ev.comebackLine)}” (-${ev.comebackDmg})</span>`;
       meEl.classList.remove('hit'); void meEl.offsetWidth; meEl.classList.add('hit');
       floatNum(meEl.querySelector('svg'), `-${ev.comebackDmg}`); renderBars();
     }
-    await wait(ev.finalBlow ? 1400 : 1300);
+    await wait(500); logLine('crowd', ev.crowd);
+    await waitForTap(ev.finalBlow ? 'See the result ▸' : undefined);
   }
 
   function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -768,6 +831,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = EBB;
     $('finalBlow').innerHTML = `“${esc(last.line)}”<div class="small">— the final blow${last.crit ? ' (signature burn)' : ''}</div>`;
     $('loserLine').textContent = `${w.win} ${l.lose}`;
     S.lastShare = `🤖💔 EMOTIONAL BATTLE BOTS\n${w.name} crushed ${poss(l.name)} self-esteem in ${b.round} rounds.\nFinal blow: “${last.line}”\n\nPlay: ${location.href.split('#')[0]}`;
+    Snd.stop(); Snd.fanfare(); document.body.classList.remove('fighting');
     show('result');
   }
   $('btnShare').addEventListener('click', async () => {

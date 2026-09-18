@@ -4,7 +4,7 @@
 | Priority | active |
 | Phase | Validate |
 | Updated | 2026-09-18 |
-| Summary | v1 built 2026-09-18: single-file phone-first browser game, 8 bots, 5 roast categories (~80 lines) + signature burns, comebacks, resists, self-care; vs. CPU and Pass & Play; share sheet. Node smoke test covers every pairing. Spec: `docs/specs/emotional-battle-bots-v1.md`. |
+| Summary | v1 built and live 2026-09-18: single-file phone-first browser game, 8 bots, 5 roast categories (~80 lines) + signature burns, comebacks, resists, self-care; vs. CPU and Pass & Play; share sheet. Same-day feedback pass: tap-to-continue with a scrolling fight transcript (no line is ever replaced), larger crowd commentary, synthesized arena music + hit/crit/heal/fanfare sfx with a mute button. Node smoke test covers every pairing; headless-Chrome visual test walks every screen. Spec: `docs/specs/emotional-battle-bots-v1.md`. |
 | Needs Scott | Play a few fights on your phone and with a friend (Pass & Play); flag lines that land flat and any layout issues on your device. |
 | Autonomous | Line-library punch-ups, balance tuning, layout fixes on reported devices. |
 | Blockers | None. |
@@ -36,6 +36,7 @@
 - [x] v1 build: roster, roast library, engine, art, UI, share, smoke test (2026-09-18)
 - [ ] [NEXT:scott] Phone playtest (solo + Pass & Play with a friend); note flat lines and layout issues
 - [x] Share channel: public repo + GitHub Pages (2026-09-18). Also uploaded to Scott's Google Drive root as a fallback.
+- [x] Scott's first-play notes (2026-09-18): lines and crowd commentary vanished too fast → tap-to-continue + persistent scrolling transcript; crowd text enlarged. Background music → Web Audio loop + sfx, mute button.
 
 ## Backlog
 
@@ -43,7 +44,7 @@
 
 1. **v2: news-refreshed roast library** — a backend job (Claude API or a Routine) reads current AI news and regenerates the `news` pool (and optionally seasons the others), emitted as `roasts.js` that sets `window.EBB_ROASTS_OVERRIDE`. Hook already exists in v1. Needs a spec: cadence, voice guardrails, how the refreshed file reaches shared copies.
 2. **Line-library punch-up pass** — after playtest feedback; target the weakest ~20% of lines per category.
-3. **Sound** — synthesized crowd "oooh," hit thud, crit sting (Web Audio, no assets).
+3. **Sound polish** — basic loop + sfx shipped 2026-09-18. Possible: a crowd "oooh" sample synthesized from filtered noise, a second riff for round 4+, remember mute across fights.
 4. **Bot builder** — let players name a bot, pick body/weapon/palette, and write two signature lines; share as a URL hash.
 5. **Best-of-3 with escalating stakes** — round 3 doubles comeback chance; only if single fights feel too short.
 

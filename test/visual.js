@@ -51,21 +51,25 @@ function getJson(u) { return new Promise((res, rej) => http.get(u, (r) => { let 
   await evaluate(`document.getElementById('btnFight').click()`); await sleep(500);
   await shot('03-arena');
 
-  // play the player's turn on the CPU's sore spot, then wait for CPU reply
+  // play the player's turn on the CPU's sore spot; the transcript waits for a tap before the CPU replies
   await evaluate(`(function(){ const b=[...document.querySelectorAll('.move')].find(m=>m.classList.contains('sore'))||document.querySelector('.move'); b.click(); })()`);
-  await sleep(700); await shot('04-hit');
-  await sleep(2600); await shot('05-cpu-reply');
+  await sleep(1400); await shot('04-hit');
+  const tapShown = await evaluate(`!!document.getElementById('btnNext')`);
+  await evaluate(`document.getElementById('btnNext').click()`); await sleep(2400); await shot('05-cpu-reply');
+  const transcriptKept = await evaluate(`document.querySelectorAll('#stage .bubble').length`);
 
-  // auto-play until result
-  for (let i = 0; i < 30; i++) {
+  // auto-play until result: click a move if available, otherwise tap-to-continue
+  for (let i = 0; i < 80; i++) {
     const done = await evaluate(`document.getElementById('result').classList.contains('on')`);
     if (done) break;
-    await evaluate(`(function(){ const m=document.querySelector('.move:not(:disabled)'); if(m) m.click(); })()`);
-    await sleep(1800);
+    await evaluate(`(function(){ const n=document.getElementById('btnNext'); if(n){n.click();return;} const m=document.querySelector('.move:not(:disabled)'); if(m) m.click(); })()`);
+    await sleep(1400);
   }
   await sleep(400); await shot('06-result');
   const finished = await evaluate(`document.getElementById('result').classList.contains('on')`);
   const winner = await evaluate(`document.getElementById('winnerName').textContent`);
+  if (!tapShown) errors.push('tap-to-continue prompt not shown after a hit');
+  if (transcriptKept < 2) errors.push(`transcript did not keep earlier lines (bubbles=${transcriptKept})`);
 
   // pass & play hand-off overlay
   await evaluate(`document.getElementById('btnNew').click()`); await sleep(200);
